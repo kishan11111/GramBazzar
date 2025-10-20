@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "kharidVechanApp",
-    "slug": "kharidVechanApp",
+    "name": "LokBazzar",
+    "slug": "LokBazzar",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kharidvechanapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+     "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true
     },
@@ -44,6 +45,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f67a3bb4-65e2-4974-9acc-02eea7ca93c9"
+      }
     }
   }
 }
