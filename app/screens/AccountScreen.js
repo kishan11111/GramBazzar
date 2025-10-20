@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
+import BottomNavWrapper from '../DynamicBottomNav';
 
 export default function AccountScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('posts');
@@ -83,8 +85,9 @@ export default function AccountScreen({ navigation }) {
     );
   };
 
-  const handleEditProfile = () => {
-    Alert.alert('ટૂંક સમયમાં', 'પ્રોફાઇલ એડિટ ટૂંક સમયમાં ઉપલબ્ધ થશે');
+
+ const handleEditProfile = () => {
+    navigation.navigate('EditProfile');
   };
 
   const handlePostClick = (post) => {
@@ -148,7 +151,7 @@ export default function AccountScreen({ navigation }) {
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
               {userData.profileImage ? (
-                <Image source={{ uri: userData.profileImage }} style={styles.avatar} />
+                <Image source={{ uri: `${API_CONFIG.BASE_URL_Image}${userData.profileImage}` }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -266,8 +269,8 @@ export default function AccountScreen({ navigation }) {
                 onPress={() => handlePostClick(post)}
               >
                 {post.mainImageUrl ? (
-                  <Image 
-                    source={{ uri: post.mainImageUrl }}
+                  <Image
+                    source={{ uri: `${API_CONFIG.BASE_URL_Image}${post.mainImageUrl}` }}
                     style={styles.postImage}
                   />
                 ) : (
@@ -336,6 +339,7 @@ export default function AccountScreen({ navigation }) {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+            <BottomNavWrapper navigation={navigation} activeTab="Account" />
     </View>
   );
 }

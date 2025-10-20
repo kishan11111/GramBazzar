@@ -12,6 +12,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
 import { apiService } from '../config/api';
 
 export default function UserDetailsScreen({ navigation, route }) {
@@ -142,15 +144,34 @@ export default function UserDetailsScreen({ navigation, route }) {
 
     try {
       const response = await apiService.registerUser(userData);
-      
+
       if (response.success) {
+        // After successful registration, try to login and store credentials
+        try {
+          const loginResponse = await apiService.loginUser(phone, 'Test@123');
+          if (loginResponse.success) {
+            await AsyncStorage.setItem('authToken', loginResponse.data.accessToken);
+            await AsyncStorage.setItem('userData', JSON.stringify(loginResponse.data.user));
+          }
+        } catch (loginError) {
+          console.error('Auto-login failed:', loginError);
+        }
+
         Alert.alert(
           'સફળતા!',
           'તમારું એકાઉન્ટ બની ગયું છે!',
           [
             {
               text: 'ઠીક છે',
-              onPress: () => navigation.navigate('Dashboard')
+              onPress: () => {
+                // Reset navigation stack to Dashboard (remove all previous screens)
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Dashboard' }],
+                  })
+                );
+              }
             }
           ]
         );

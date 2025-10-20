@@ -36,11 +36,11 @@ const handleSendOTP = async () => {
 
   try {
     const response = await apiService.sendOTP(phoneNumber, 'REGISTER');
-    
+
     if (response.success) {
       // Success - Navigate to OTP screen
       alert(response.data.message);
-      navigation.navigate('OtpVerification', { 
+      navigation.navigate('OtpVerification', {
         phone: phoneNumber,
         expiryTime: response.data.expiryTime
       });

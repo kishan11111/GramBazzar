@@ -1,20 +1,35 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
 import { apiService } from '../config/api';
 
 export default function OtpVerificationScreen({ navigation, route }) {
   const { phone } = route.params;
   const [otp, setOtp] = useState(['', '', '', '']);
+  const [countdown, setCountdown] = useState(30); // 120 seconds = 2 minutes
+  const [canResend, setCanResend] = useState(false);
   const inputRefs = [useRef(), useRef(), useRef(), useRef()];
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [countdown]);
 
   const handleOtpChange = (value, index) => {
     const newOtp = [...otp];
@@ -74,9 +89,17 @@ const handleVerifyOtp = async () => {
       await AsyncStorage.setItem('authToken', loginResponse.data.accessToken);
       await AsyncStorage.setItem('userData', JSON.stringify(loginResponse.data.user));
       console.log('Login successful:', loginResponse.data);
-      navigation.navigate('Dashboard');
+
+      // Reset navigation stack to Dashboard (remove all previous screens)
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        })
+      );
     } else {
-      navigation.navigate('UserDetails', { 
+      // Replace current screen with UserDetails (remove OTP screen from stack)
+      navigation.replace('UserDetails', {
         phone: phone,
         otp: otpCode
       });
@@ -90,10 +113,22 @@ const handleVerifyOtp = async () => {
   }
 };
 
-  const handleResendOtp = () => {
-    alert('OTP ફરીથી મોકલ્યો! (119 સેકંડ)');
-    setOtp(['', '', '', '']);
-    inputRefs[0].current.focus();
+  const handleResendOtp = async () => {
+    try {
+      const response = await apiService.sendOTP(phone, 'REGISTER');
+      if (response.success) {
+        alert('OTP ફરીથી મોકલ્યો!');
+        setCountdown(30);// change by Dev
+        setCanResend(false);
+        setOtp(['', '', '', '']);
+        inputRefs[0].current.focus();
+      } else {
+        alert('OTP મોકલવામાં સમસ્યા. કૃપા કરીને ફરી પ્રયાસ કરો.');
+      }
+    } catch (error) {
+      console.error('Resend OTP Error:', error);
+      alert('કનેક્શન સમસ્યા. કૃપા કરીને ફરી પ્રયાસ કરો.');
+    }
   };
 
   return (
@@ -148,9 +183,15 @@ const handleVerifyOtp = async () => {
 
         {/* Timer and Resend */}
         <View style={styles.resendContainer}>
-          <Text style={styles.timerText}>
-            ઓટીપી કોડ ફરીથી મોકલો (119)
-          </Text>
+          {canResend ? (
+            <TouchableOpacity onPress={handleResendOtp}>
+              <Text style={styles.resendText}>ઓટીપી કોડ ફરીથી મોકલો</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.timerText}>
+              ઓટીપી કોડ ફરીથી મોકલો ({countdown} સેકંડ)
+            </Text>
+          )}
         </View>
 
         {/* Verify Button */}
@@ -177,10 +218,10 @@ const handleVerifyOtp = async () => {
           </Text>
         </View>
 
-        {/* Farmer Message */}
+        {/* App Message */}
         <View style={styles.farmerBox}>
           <Text style={styles.farmerText}>
-            🌾 ખેડૂત ભાઈઓ-બહેનો માટે સુરક્ષિત અને સરળ{' '}
+            🛒 સુરક્ષિત અને સરળ સ્થાનિક વેપાર{' '}
           </Text>
         </View>
       </View>
@@ -264,8 +305,14 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#999',
     fontWeight: '600',
+  },
+  resendText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
   button: {
     backgroundColor: '#4CAF50',

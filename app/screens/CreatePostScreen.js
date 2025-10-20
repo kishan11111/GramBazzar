@@ -1,164 +1,436 @@
-
-// import { useState } from 'react';
-// import {
-//   Alert,
-//   ScrollView,
-//   StatusBar,
-//   StyleSheet,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   View
-// } from 'react-native';
-// import { apiService } from '../config/api';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  FlatList,
+  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { apiService } from '../config/api';
-
-
+import BottomNavWrapper from '../DynamicBottomNav';
+// Generate light unique colors for categories
+const generateLightColor = (index) => {
+  const colors = [
+    '#FFE5E5', '#E5F5FF', '#FFF5E5', '#E5FFE5', '#F5E5FF',
+    '#FFE5F5', '#E5FFFF', '#FFFFE5', '#F5FFE5', '#E5F5F5',
+    '#FFE5EE', '#EEE5FF', '#E5FFEE', '#FFEEEE', '#EEF5FF',
+    '#FFF5EE', '#F5FFEE', '#EEE5F5', '#E5EEFF', '#F5E5EE',
+  ];
+  return colors[index % colors.length];
+};
 
 export default function CreatePostScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [showCategorySelector, setShowCategorySelector] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [images, setImages] = useState([]);
-  
+
   // Dynamic fields
   const [year, setYear] = useState('');
   const [kilometers, setKilometers] = useState('');
   const [breed, setBreed] = useState('');
   const [age, setAge] = useState('');
 
-  // All categories
-  const categories = [
-    { id: 1, name: 'કાર', icon: '🚗', needsVehicleInfo: true },
-    { id: 2, name: 'બાઇક', icon: '🏍️', needsVehicleInfo: true },
-    { id: 3, name: 'સ્કૂટર', icon: '🛵', needsVehicleInfo: true },
-    { id: 4, name: 'ટ્રેક્ટર', icon: '🚜', needsVehicleInfo: true },
-    { id: 5, name: 'ગાય', icon: '🐄', needsAnimalInfo: true },
-    { id: 6, name: 'ભેંસ', icon: '🐃', needsAnimalInfo: true },
-    { id: 7, name: 'બકરી', icon: '🐐', needsAnimalInfo: true },
-    { id: 8, name: 'ઘોડો', icon: '🐴', needsAnimalInfo: true },
-    { id: 9, name: 'મરઘી', icon: '🐔', needsAnimalInfo: true },
-    { id: 10, name: 'ખેત', icon: '🌾', needsLandInfo: true },
-    { id: 11, name: 'જમીન', icon: '🏞️', needsLandInfo: true },
-    { id: 12, name: 'મકાન', icon: '🏠', needsPropertyInfo: true },
-    { id: 13, name: 'મોબાઇલ', icon: '📱', needsBasicInfo: true },
-    { id: 14, name: 'ફર્નિચર', icon: '🪑', needsBasicInfo: true },
-    { id: 15, name: 'નોકરી', icon: '💼', needsJobInfo: true },
-  ];
+  // Function to clear all form data
+  const clearForm = () => {
+    setSelectedCategory(null);
+    setTitle('');
+    setDescription('');
+    setPrice('');
+    setLocation('');
+    setImages([]);
+    setYear('');
+    setKilometers('');
+    setBreed('');
+    setAge('');
+  };
 
-  const selectedCategoryData = categories.find(c => c.name === selectedCategory);
+  useEffect(() => {
+    fetchCategories();
 
-  const handleImagePick = () => {
-    // Will implement image picker later
-    Alert.alert('ફોટો', 'ફોટો પસંદ કરવાની સુવિધા ટૂંક સમયમાં ઉપલબ્ધ થશે');
+    // Add listener to clear form when screen comes into focus from Account screen
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Check if we're coming from Account screen via bottom nav
+      // This ensures form is cleared when user navigates back
+      const routes = navigation.getState()?.routes;
+      const currentIndex = navigation.getState()?.index;
+
+      if (routes && currentIndex > 0) {
+        const previousRoute = routes[currentIndex - 1];
+        if (previousRoute?.name === 'Account') {
+          // User is navigating from Account, clear the form
+          clearForm();
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      const response = await apiService.getCategoryList();
+
+      if (response.success && response.data) {
+        // Map API data to component format with colors
+        const formattedCategories = response.data.map((cat, index) => ({
+          id: cat.categoryId,
+          name: cat.categoryNameGujarati,
+          nameEnglish: cat.categoryNameEnglish,
+          icon: cat.categoryIcon || '📦',
+          categoryId: cat.categoryId,
+          color: generateLightColor(index),
+        }));
+        setCategories(formattedCategories);
+      } else {
+        Alert.alert('Error', 'Failed to load categories');
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      Alert.alert('Error', 'Failed to load categories. Please try again.');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const selectedCategoryData = selectedCategory;
+
+  // Image picker function
+//   const handleImagePick = async () => {
+//     if (images.length >= 4) {
+//       Alert.alert('મર્યાદા પૂર્ણ', 'તમે મહત્તમ 4 ફોટો પસંદ કરી શકો છો');
+//       return;
+//     }
+
+//     // Request permission
+//     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+//     if (status !== 'granted') {
+//       Alert.alert('પરવાનગી જરૂરી', 'કૃપા કરીને ફોટો લાઇબ્રેરી એક્સેસ કરવાની પરવાનગી આપો');
+//       return;
+//     }
+
+//     // Launch image picker
+//    const result = await ImagePicker.launchImageLibraryAsync({
+//   mediaTypes: ImagePicker.MediaTypeOptions.Images, // ✅ Correct for expo-image-picker v17
+//   allowsMultipleSelection: true,
+//   selectionLimit: 4 - images.length,
+//   quality: 0.8,
+//   aspect: [4, 3],
+// });
+
+
+//     if (!result.canceled) {
+//       const newImages = result.assets.map(asset => ({
+//         uri: asset.uri,
+//         type: asset.type || 'image/jpeg',
+//         fileName: asset.fileName || `image_${Date.now()}.jpg`,
+//       }));
+      
+//       setImages([...images, ...newImages].slice(0, 4));
+//     }
+//   };
+
+// const handleImagePick = async () => {
+//   if (images.length >= 4) {
+//     Alert.alert('મર્યાદા પૂર્ણ', 'તમે મહત્તમ 4 ફોટો પસંદ કરી શકો છો');
+//     return;
+//   }
+
+//   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+//   if (status !== 'granted') {
+//     Alert.alert('પરવાનગી જરૂરી', 'કૃપા કરીને ફોટો લાઇબ્રેરી એક્સેસ કરવાની પરવાનગી આપો');
+//     return;
+//   }
+
+//   const result = await ImagePicker.launchImageLibraryAsync({
+//     mediaTypes: ['images'],
+//     allowsMultipleSelection: true,
+//     selectionLimit: 4 - images.length,
+//     quality: 0.8,
+//     aspect: [4, 3],
+//   });
+
+//   if (!result.canceled) {
+//     const newImages = result.assets.map(asset => {
+//       // Fix the MIME type - expo-image-picker returns incomplete type
+//       let mimeType = 'image/jpeg'; // default
+      
+//       if (asset.mimeType) {
+//         mimeType = asset.mimeType;
+//       } else if (asset.type) {
+//         // If type is just "image", derive from URI
+//         if (asset.uri.toLowerCase().includes('.png')) {
+//           mimeType = 'image/png';
+//         } else if (asset.uri.toLowerCase().includes('.jpg') || asset.uri.toLowerCase().includes('.jpeg')) {
+//           mimeType = 'image/jpeg';
+//         }
+//       }
+      
+//       console.log('Selected image:', asset.uri, 'MIME type:', mimeType, asset.fileName);
+      
+//       return {
+//         uri: asset.uri,
+//         type: mimeType, // ✅ Use proper MIME type
+//         fileName: asset.fileName || `image_${Date.now()}.jpg`,
+//       };
+//     });
+    
+//     console.log('New images to add:', newImages);
+//     setImages([...images, ...newImages].slice(0, 4));
+//   }
+// };
+// Find this function (around line 80) and REPLACE it:
+const handleImagePick = async () => {
+  if (images.length >= 4) {
+    Alert.alert('મર્યાદા પૂર્ણ', 'તમે મહત્તમ 4 ફોટો પસંદ કરી શકો છો');
+    return;
+  }
+
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert('પરવાનગી જરૂરી', 'કૃપા કરીને ફોટો લાઇબ્રેરી એક્સેસ કરવાની પરવાનગી આપો');
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'], // ✅ Fixed: Use array format instead of deprecated MediaTypeOptions
+    allowsMultipleSelection: false, // ✅ Single image at a time for stability
+    quality: 0.7,
+    aspect: [4, 3],
+  });
+
+  if (!result.canceled && result.assets && result.assets.length > 0) {
+    const asset = result.assets[0];
+    
+    const newImage = {
+      uri: asset.uri,
+      fileName: asset.fileName || `image_${Date.now()}.jpg`,
+    };
+    
+    console.log('Selected image:', newImage);
+    setImages([...images, newImage].slice(0, 4));
+  }
+};
+  // Remove image
+  const handleRemoveImage = (index) => {
+    const newImages = images.filter((_, i) => i !== index);
+    setImages(newImages);
   };
 
   const handleSubmit = async () => {
-  // Validation
-  if (!selectedCategory) {
-    Alert.alert('ભૂલ', 'કૃપા કરીને કેટેગરી પસંદ કરો');
-    return;
-  }
-  if (!title) {
-    Alert.alert('ભ૚ל', 'કૃપા કરીને શીર્ષક દાખલ કરો');
-    return;
-  }
-  if (!price) {
-    Alert.alert('ભૂલ', 'કૃપા કરીને કિંમત દાખલ કરો');
-    return;
-  }
-  if (!location) {
-    Alert.alert('ભૂલ', 'કૃપા કરીને સ્થળ દાખલ કરો');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    // Get user data from storage
-    const userDataString = await AsyncStorage.getItem('userData');
-    const userData = JSON.parse(userDataString);
-
-    if (!userData) {
-      Alert.alert('ભૂલ', 'કૃપા કરીને ફરી લૉગિન કરો');
-      navigation.navigate('Welcome');
+    // Validation
+    if (!selectedCategory) {
+      Alert.alert('ભૂલ', 'કૃપા કરીને કેટેગરી પસંદ કરો');
+      return;
+    }
+    if (!title) {
+      Alert.alert('ભૂલ', 'કૃપા કરીને શીર્ષક દાખલ કરો');
+      return;
+    }
+    if (!price) {
+      Alert.alert('ભૂલ', 'કૃપા કરીને કિંમત દાખલ કરો');
+      return;
+    }
+    if (!location) {
+      Alert.alert('ભૂલ', 'કૃપા કરીને સ્થળ દાખલ કરો');
+      return;
+    }
+    if (images.length === 0) {
+      Alert.alert('ભૂલ', 'કૃપા કરીને ઓછામાં ઓછો 1 ફોટો ઉમેરો');
       return;
     }
 
-    // Prepare post data
-    const postData = {
-      title: title,
-      description: description || 'વધુ માહિતી માટે સંપર્ક કરો',
-      price: parseFloat(price),
-      priceType: 'NEGOTIABLE',
-      condition: 'GOOD',
-      categoryId: 1, // Static for now
-      subCategoryId: selectedCategoryData?.id || 1, // Using category id
-      districtId: userData.districtId,
-      talukaId: userData.talukaId,
-      villageId: userData.villageId,
-      address: location,
-      contactMethod: 'BOTH',
-      contactPhone: userData.mobile,
-    };
+    setLoading(true);
 
-    // Add dynamic fields based on category
-    if (selectedCategoryData?.needsVehicleInfo) {
-      // Add vehicle specific data if needed
-      postData.description = `${description}\nવર્ષ: ${year}, કિ.મી.: ${kilometers}`;
-    } else if (selectedCategoryData?.needsAnimalInfo) {
-      // Add animal specific data if needed
-      postData.description = `${description}\nજાતિ: ${breed}, ઉંમર: ${age}`;
-    }
+    try {
+      // Get user data from storage
+      const userDataString = await AsyncStorage.getItem('userData');
+      const userData = JSON.parse(userDataString);
 
-    const response = await apiService.createPost(postData);
+      if (!userData) {
+        Alert.alert('ભૂલ', 'કૃપા કરીને ફરી લૉગિન કરો');
+        navigation.navigate('Welcome');
+        return;
+      }
 
-    if (response.success) {
-      Alert.alert(
-        'સફળતા!',
-        'તમારી જાહેરાત પોસ્ટ થઈ ગઈ છે!',
-        [
+      // Prepare post data
+      const postData = {
+        title: title,
+        description: description || 'વધુ માહિતી માટે સંપર્ક કરો',
+        price: parseFloat(price),
+        priceType: 'NEGOTIABLE',
+        condition: 'GOOD',
+        categoryId: selectedCategoryData?.categoryId || selectedCategoryData?.id || 1,
+        subCategoryId: selectedCategoryData?.id || 1,
+        districtId: userData.districtId,
+        talukaId: userData.talukaId,
+        villageId: userData.villageId,
+        address: location,
+        contactMethod: 'BOTH',
+        contactPhone: userData.mobile,
+      };
+
+      // Add dynamic fields based on category (if needed in future)
+      if (year || kilometers) {
+        postData.description = `${description}\nવર્ષ: ${year}, કિ.મી.: ${kilometers}`;
+      } else if (breed || age) {
+        postData.description = `${description}\nજાતિ: ${breed}, ઉંમર: ${age}`;
+      }
+
+      // Step 1: Create the post
+      const response = await apiService.createPost(postData);
+
+      if (response.success) {
+        const postId = response.data.postId;
+
+        // Step 2: Upload images if post creation successful
+        setUploadingImages(true);
+        
+        try {
+          const uploadResponse = await apiService.uploadPostImages(postId, images);
+          
+          if (uploadResponse.success) {
+            // Clear form after successful post creation
+            clearForm();
+
+            Alert.alert(
+              'સફળતા!',
+              `તમારી જાહેરાત અને ${uploadResponse.data.length} ફોટો અપલોડ થયા!`,
+              [
+                {
+                  text: 'ઠીક છે',
+                  onPress: () => {
+                    // Replace navigation to Account (removes CreatePost from stack)
+                    navigation.replace('Account');
+                  }
+                }
+              ]
+            );
+          } else {
+            // Post created but images failed
+            clearForm();
+
+            Alert.alert(
+              'આંશિક સફળતા',
+              'તમારી જાહેરાત પોસ્ટ થઈ પણ ફોટો અપલોડમાં સમસ્યા',
+              [
+                {
+                  text: 'ઠીક છે',
+                  onPress: () => {
+                    navigation.replace('Account');
+                  }
+                }
+              ]
+            );
+          }
+        } catch (uploadError) {
+          console.error('Image upload error:', uploadError);
+          clearForm();
+
+          Alert.alert(
+            'આંશિક સફળતા',
+            'તમારી જાહેરાત પોસ્ટ થઈ પણ ફોટો અપલોડમાં સમસ્યા',
+            [
+              {
+                text: 'ઠીક છે',
+                onPress: () => {
+                  navigation.replace('Account');
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        Alert.alert('ભૂલ', response.message || 'જાહેરાત પોસ્ટ કરવામાં સમસ્યા');
+      }
+    } catch (error) {
+      if (error.message.includes('લૉગિન')) {
+        Alert.alert('સત્ર સમાપ્ત', error.message, [
           {
             text: 'ઠીક છે',
-            onPress: () => navigation.navigate('Account')
+            onPress: () => navigation.navigate('Welcome')
           }
-        ]
-      );
-    } else {
-      Alert.alert('ભૂલ', response.message || 'જાહેરાત પોસ્ટ કરવામાં સમસ્યા');
+        ]);
+      } else {
+        Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા. કૃપા કરીને ફરી પ્રયાસ કરો.');
+      }
+      console.error('Create Post Error:', error);
+    } finally {
+      setLoading(false);
+      setUploadingImages(false);
     }
-  } catch (error) {
-    if (error.message.includes('લૉગિન')) {
-      Alert.alert('સત્ર સમાપ્ત', error.message, [
-        {
-          text: 'ઠીક છે',
-          onPress: () => navigation.navigate('Welcome')
-        }
-      ]);
-    } else {
-      Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા. કૃપા કરીને ફરી પ્રયાસ કરો.');
-    }
-    console.error('Create Post Error:', error);
-  } finally {
-    setLoading(false);
+  };
+
+  // Category Selector Modal Component
+  const CategorySelectorModal = () => (
+    <View style={styles.modalContainer}>
+      <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => setShowCategorySelector(false)}
+        >
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>કેટેગરી પસંદ કરો</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      {/* Category Grid */}
+      {categoriesLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>કેટેગરી લોડ થઈ રહી છે...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={categories}
+          numColumns={1}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.categoryListItem}
+              onPress={() => {
+                setSelectedCategory(item);
+                setShowCategorySelector(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.categoryIconBox, { backgroundColor: item.color }]}>
+                <Text style={styles.categoryListIcon}>{item.icon}</Text>
+              </View>
+              <Text style={styles.categoryListName}>{item.name}</Text>
+              <Text style={styles.arrowIcon}>›</Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={styles.categoryListContainer}
+        />
+      )}
+    </View>
+  );
+
+  // If category selector is shown, display the modal
+  if (showCategorySelector) {
+    return <CategorySelectorModal />;
   }
-};
 
   return (
     <View style={styles.container}>
@@ -166,57 +438,74 @@ export default function CreatePostScreen({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backIcon}>×</Text>
+          <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>જાહેરાત મૂકો</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Category Selection */}
+        {/* Category Selection Button */}
         <View style={styles.section}>
           <Text style={styles.label}>કેટેગરી પસંદ કરો *</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryScroll}
+          <TouchableOpacity
+            style={styles.categorySelectorButton}
+            onPress={() => setShowCategorySelector(true)}
           >
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  selectedCategory === cat.name && styles.categoryChipActive
-                ]}
-                onPress={() => setSelectedCategory(cat.name)}
-              >
-                <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                <Text style={[
-                  styles.categoryText,
-                  selectedCategory === cat.name && styles.categoryTextActive
-                ]}>
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+            {selectedCategory ? (
+              <>
+                <View style={[styles.selectedCategoryIconBox, { backgroundColor: selectedCategory.color }]}>
+                  <Text style={styles.selectedCategoryIcon}>{selectedCategory.icon}</Text>
+                </View>
+                <Text style={styles.selectedCategoryName}>{selectedCategory.name}</Text>
+                <Text style={styles.arrowIcon}>›</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.placeholderCategoryIcon}>📦</Text>
+                <Text style={styles.placeholderCategoryText}>કેટેગરી પસંદ કરો</Text>
+                <Text style={styles.arrowIcon}>›</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Image Upload */}
         <View style={styles.section}>
-          <Text style={styles.label}>ફોટો ઉમેરો *</Text>
-          <TouchableOpacity 
-            style={styles.imageUploadBox}
-            onPress={handleImagePick}
-          >
-            <Text style={styles.uploadIcon}>📸</Text>
-            <Text style={styles.uploadText}>ફોટો પસંદ કરો</Text>
-            <Text style={styles.uploadSubtext}>મહત્તમ 5 ફોટો</Text>
-          </TouchableOpacity>
+          <Text style={styles.label}>ફોટો ઉમેરો * ({images.length}/4)</Text>
+          
+          {/* Display selected images */}
+          {images.length > 0 && (
+            <View style={styles.imageGrid}>
+              {images.map((image, index) => (
+                <View key={index} style={styles.imageContainer}>
+                  <Image source={{ uri: image.uri }} style={styles.thumbnail} />
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveImage(index)}
+                  >
+                    <Text style={styles.removeButtonText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Add photo button */}
+          {images.length < 4 && (
+            <TouchableOpacity 
+              style={styles.imageUploadBox}
+              onPress={handleImagePick}
+            >
+              <Text style={styles.uploadIcon}>📸</Text>
+              <Text style={styles.uploadText}>ફોટો પસંદ કરો</Text>
+              <Text style={styles.uploadSubtext}>મહત્તમ 4 ફોટો</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Title */}
@@ -250,7 +539,7 @@ export default function CreatePostScreen({ navigation }) {
           <>
             <View style={styles.row}>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>વર્ષ *</Text>
+                <Text style={styles.label}>વર્ષ</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="2020"
@@ -261,7 +550,7 @@ export default function CreatePostScreen({ navigation }) {
                 />
               </View>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>કિલોમીટર *</Text>
+                <Text style={styles.label}>કિલોમીટર</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="15000"
@@ -332,26 +621,41 @@ export default function CreatePostScreen({ navigation }) {
         <View style={styles.infoBox}>
           <Text style={styles.infoIcon}>ℹ️</Text>
           <Text style={styles.infoText}>
-            તમારી જાહેરાત ચકાસણી પછી 24 કલાકમાં લાઇવ થશે
+            તમારી જાહેરાત ચકાસણી પછી 6 કલાકમાં લાઇવ થશે
           </Text>
         </View>
 
         {/* Submit Button */}
         <TouchableOpacity 
-          style={styles.submitButton}
+          style={[styles.submitButton, (loading || uploadingImages) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
+          disabled={loading || uploadingImages}
         >
-          <Text style={styles.submitText}>જાહેરાત પોસ્ટ કરો</Text>
+          {loading || uploadingImages ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color="#FFFFFF" />
+              <Text style={styles.submitText}>
+                {uploadingImages ? 'ફોટો અપલોડ થઈ રહ્યા છે...' : 'પોસ્ટ થઈ રહ્યું છે...'}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.submitText}>જાહેરાત પોસ્ટ કરો</Text>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
       </ScrollView>
+      <BottomNavWrapper navigation={navigation} activeTab="createPost" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  modalContainer: {
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
@@ -372,7 +676,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backIcon: {
-    fontSize: 36,
+    fontSize: 28,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
@@ -398,35 +702,123 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 8,
   },
-  categoryScroll: {
-    marginTop: 10,
-  },
-  categoryChip: {
+  // Category Selector Button Styles
+  categorySelectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-    marginRight: 10,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1.5,
+    borderColor: '#C8E6C9',
+    borderRadius: 10,
+    padding: 15,
   },
-  categoryChipActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+  selectedCategoryIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  categoryIcon: {
-    fontSize: 20,
-    marginRight: 6,
+  selectedCategoryIcon: {
+    fontSize: 28,
   },
-  categoryText: {
+  selectedCategoryName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  placeholderCategoryIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  placeholderCategoryText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#999',
+  },
+  arrowIcon: {
+    fontSize: 28,
+    color: '#999',
+  },
+  // Category List Modal Styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
     fontSize: 14,
     color: '#666',
-    fontWeight: '600',
   },
-  categoryTextActive: {
-    color: '#2E7D32',
+  categoryListContainer: {
+    padding: 10,
+  },
+  categoryListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    marginHorizontal: 10,
+    marginVertical: 5,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  categoryIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  categoryListIcon: {
+    fontSize: 32,
+  },
+  categoryListName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 15,
+    gap: 10,
+  },
+  imageContainer: {
+    position: 'relative',
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  removeButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(244, 67, 54, 0.9)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 20,
     fontWeight: 'bold',
   },
   imageUploadBox: {
@@ -504,6 +896,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     elevation: 3,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#A5D6A7',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   submitText: {
     color: '#FFFFFF',

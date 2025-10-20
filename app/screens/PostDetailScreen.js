@@ -1,30 +1,181 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    Image,
-    Linking,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Linking,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
+import { PostDetailShimmer } from '../components/Shimmer';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function PostDetailScreen({ route, navigation }) {
-  const { post } = route.params;
-  const [isFavorite, setIsFavorite] = useState(false);
+  const { post: initialPost } = route.params;
 
-  // Dummy seller phone for now (will be added to API later)
-  const sellerPhone = '+919876543210';
+  const [postDetail, setPostDetail] = useState(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fullScreenVisible, setFullScreenVisible] = useState(false);
+  const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
+  const scrollViewRef = useRef(null);
+  const fullScreenScrollRef = useRef(null);
+
+  useEffect(() => {
+    loadPostDetail();
+  }, []);
+
+  const loadPostDetail = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getPostById(initialPost.postId);
+
+      if (response.success) {
+        setPostDetail(response.data);
+      } else {
+        Alert.alert('ભૂલ', 'પોસ્ટ વિગત લોડ કરવામાં સમસ્યા');
+      }
+    } catch (error) {
+      Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા');
+      console.error('Load Post Detail Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCall = () => {
-    Linking.openURL(`tel:${sellerPhone}`);
+    if (postDetail?.contactPhone) {
+      Linking.openURL(`tel:${postDetail.contactPhone}`);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    setFavoriteLoading(true);
+    try {
+      const response = await apiService.toggleFavoritePost(postDetail.postId);
+      if (response.success) {
+        setIsFavorite(!isFavorite);
+        Alert.alert(
+          'સફળતા',
+          isFavorite ? 'સાચવેલમાંથી દૂર કર્યું' : 'સાચવેલમાં ઉમેર્યું'
+        );
+      }
+    } catch (error) {
+      if (error.message.includes('લૉગિન')) {
+        Alert.alert('સત્ર સમાપ્ત', error.message, [
+          {
+            text: 'ઠીક છે',
+            onPress: () => navigation.navigate('Welcome')
+          }
+        ]);
+      } else {
+        Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા');
+      }
+    } finally {
+      setFavoriteLoading(false);
+    }
   };
 
   const handleWhatsApp = () => {
-    const message = `હેલો, હું ${post.title} વિશે પૂછપરછ કરવા માંગું છું. કિંમત: ${post.priceString}`;
-    Linking.openURL(`whatsapp://send?phone=${sellerPhone}&text=${encodeURIComponent(message)}`);
+    if (postDetail?.contactPhone && postDetail?.title && postDetail?.priceString) {
+      const message = `હેલો, હું ${postDetail.title} વિશે પૂછપરછ કરવા માંગું છું. કિંમત: ${postDetail.priceString}`;
+      Linking.openURL(`whatsapp://send?phone=${postDetail.contactPhone}&text=${encodeURIComponent(message)}`);
+    }
   };
+
+  const handleScroll = (event) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / SCREEN_WIDTH);
+    setCurrentImageIndex(index);
+  };
+
+  const handleFullScreenScroll = (event) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / SCREEN_WIDTH);
+    setFullScreenImageIndex(index);
+  };
+
+  const openFullScreen = (index) => {
+    setFullScreenImageIndex(index);
+    setFullScreenVisible(true);
+    // Scroll to the selected image after modal opens
+    setTimeout(() => {
+      fullScreenScrollRef.current?.scrollTo({
+        x: index * SCREEN_WIDTH,
+        animated: false,
+      });
+    }, 100);
+  };
+
+  const closeFullScreen = () => {
+    setFullScreenVisible(false);
+  };
+
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    return `${API_CONFIG.BASE_URL_Image}${imageUrl}`;
+  };
+
+  // Get images array from post detail
+  const images = postDetail?.images || [];
+  const hasImages = images.length > 0;
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>વિગત</Text>
+          <View style={styles.favoriteHeaderButton} />
+        </View>
+        <PostDetailShimmer />
+      </View>
+    );
+  }
+
+  if (!postDetail) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>વિગત</Text>
+          <View style={styles.favoriteHeaderButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>પોસ્ટ મળી નથી</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadPostDetail}
+          >
+            <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -32,38 +183,84 @@ export default function PostDetailScreen({ route, navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>વિગતો</Text>
-        <TouchableOpacity 
-          style={styles.favoriteButton}
-          onPress={() => setIsFavorite(!isFavorite)}
+        <Text style={styles.headerTitle}>વિગત</Text>
+        <TouchableOpacity
+          style={styles.favoriteHeaderButton}
+          onPress={handleToggleFavorite}
+          disabled={favoriteLoading}
         >
-          <Text style={styles.favoriteIcon}>
-            {isFavorite ? '❤️' : '🤍'}
-          </Text>
+          {favoriteLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.favoriteHeaderIcon}>
+              {isFavorite ? '❤️' : '🤍'}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
         <View style={styles.imageGallery}>
-          {post.mainImageUrl ? (
-            <Image
-              source={{ uri: post.mainImageUrl }}
-              style={styles.mainImage}
-            />
+          {hasImages ? (
+            <>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+              >
+                {images.map((image, index) => (
+                  <TouchableOpacity
+                    key={image.imageId}
+                    activeOpacity={0.9}
+                    onPress={() => openFullScreen(index)}
+                  >
+                    <Image
+                      source={{ uri: getImageUrl(image.imageUrl) }}
+                      style={styles.mainImage}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Image Counter */}
+              <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>
+                  {currentImageIndex + 1} / {images.length}
+                </Text>
+              </View>
+
+              {/* Pagination Dots */}
+              {images.length > 1 && (
+                <View style={styles.pagination}>
+                  {images.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.paginationDot,
+                        currentImageIndex === index && styles.paginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
           ) : (
             <View style={styles.noImageContainer}>
               <Text style={styles.noImageIcon}>📷</Text>
               <Text style={styles.noImageText}>ફોટો ઉપલબ્ધ નથી</Text>
             </View>
           )}
-          {post.isFeatured && (
+          {postDetail.isFeatured && (
             <View style={styles.featuredBadge}>
               <Text style={styles.featuredIcon}>⭐</Text>
               <Text style={styles.featuredText}>ફીચર્ડ</Text>
@@ -74,40 +271,50 @@ export default function PostDetailScreen({ route, navigation }) {
         {/* Price Section */}
         <View style={styles.priceSection}>
           <View style={styles.priceContainer}>
-            <Text style={styles.price}>{post.priceString}</Text>
-            <Text style={styles.priceLabel}>{post.priceType}</Text>
+            <Text style={styles.price}>{postDetail.priceString}</Text>
+            <Text style={styles.priceLabel}>{postDetail.priceType}</Text>
           </View>
           <View style={styles.timeContainer}>
             <Text style={styles.timeIcon}>🕐</Text>
-            <Text style={styles.timeText}>{post.timeAgo}</Text>
+            <Text style={styles.timeText}>
+              {postDetail.daysOld === 0 ? 'આજે' : `${postDetail.daysOld} દિવસ પહેલાં`}
+            </Text>
           </View>
         </View>
 
         {/* Title */}
         <View style={styles.titleSection}>
-          <Text style={styles.title}>{post.title}</Text>
+          <Text style={styles.title}>{postDetail.title}</Text>
           <View style={styles.locationRow}>
             <Text style={styles.locationIcon}>📍</Text>
-            <Text style={styles.location}>{post.locationString}</Text>
+            <Text style={styles.location}>{postDetail.locationString}</Text>
           </View>
         </View>
+
+        {/* Description */}
+        {postDetail.description && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📝 વર્ણન</Text>
+            <Text style={styles.description}>{postDetail.description}</Text>
+          </View>
+        )}
 
         {/* Quick Info */}
         <View style={styles.quickInfoSection}>
           <View style={styles.infoCard}>
             <Text style={styles.infoIcon}>📊</Text>
             <Text style={styles.infoLabel}>સ્થિતિ</Text>
-            <Text style={styles.infoValue}>{post.condition}</Text>
+            <Text style={styles.infoValue}>{postDetail.condition}</Text>
           </View>
           <View style={styles.infoCard}>
             <Text style={styles.infoIcon}>👁️</Text>
             <Text style={styles.infoLabel}>Views</Text>
-            <Text style={styles.infoValue}>{post.viewCount}</Text>
+            <Text style={styles.infoValue}>{postDetail.viewCount}</Text>
           </View>
           <View style={styles.infoCard}>
             <Text style={styles.infoIcon}>❤️</Text>
             <Text style={styles.infoLabel}>Favorites</Text>
-            <Text style={styles.infoValue}>{post.favoriteCount}</Text>
+            <Text style={styles.infoValue}>{postDetail.favoriteCount}</Text>
           </View>
         </View>
 
@@ -115,11 +322,11 @@ export default function PostDetailScreen({ route, navigation }) {
         <View style={styles.categorySection}>
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryLabel}>કેટેગરી:</Text>
-            <Text style={styles.categoryValue}>{post.categoryName}</Text>
+            <Text style={styles.categoryValue}>{postDetail.categoryName}</Text>
           </View>
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryLabel}>પ્રકાર:</Text>
-            <Text style={styles.categoryValue}>{post.subCategoryName}</Text>
+            <Text style={styles.categoryValue}>{postDetail.subCategoryName}</Text>
           </View>
         </View>
 
@@ -128,12 +335,18 @@ export default function PostDetailScreen({ route, navigation }) {
           <Text style={styles.sectionTitle}>📝 પોસ્ટ માહિતી</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoRowLabel}>પોસ્ટ ID:</Text>
-            <Text style={styles.infoRowValue}>#{post.postId}</Text>
+            <Text style={styles.infoRowValue}>#{postDetail.postId}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoRowLabel}>સ્ટેટસ:</Text>
-            <Text style={[styles.infoRowValue, styles.statusActive]}>{post.status}</Text>
+            <Text style={[styles.infoRowValue, styles.statusActive]}>{postDetail.status}</Text>
           </View>
+          {postDetail.address && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoRowLabel}>સરનામું:</Text>
+              <Text style={styles.infoRowValue}>{postDetail.address}</Text>
+            </View>
+          )}
         </View>
 
         {/* Contact Information */}
@@ -144,9 +357,12 @@ export default function PostDetailScreen({ route, navigation }) {
               <Text style={styles.contactAvatarText}>👤</Text>
             </View>
             <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>વિક્રેતા</Text>
-              <Text style={styles.contactPhone}>{sellerPhone}</Text>
-              <Text style={styles.contactLocation}>📍 {post.locationString}</Text>
+              <Text style={styles.contactName}>{postDetail.userName}</Text>
+              <Text style={styles.contactPhone}>
+                {postDetail.contactPhone || postDetail.userMobile}
+                {postDetail.userVerified && ' ✓'}
+              </Text>
+              <Text style={styles.contactLocation}>📍 {postDetail.locationString}</Text>
             </View>
           </View>
         </View>
@@ -173,14 +389,14 @@ export default function PostDetailScreen({ route, navigation }) {
 
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.callButton}
           onPress={handleCall}
         >
           <Text style={styles.callIcon}>📞</Text>
           <Text style={styles.callText}>કૉલ કરો</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.whatsappButton}
           onPress={handleWhatsApp}
         >
@@ -188,6 +404,53 @@ export default function PostDetailScreen({ route, navigation }) {
           <Text style={styles.whatsappText}>WhatsApp</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Full Screen Image Modal */}
+      <Modal
+        visible={fullScreenVisible}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={closeFullScreen}
+      >
+        <View style={styles.fullScreenContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
+          {/* Full Screen Header */}
+          <View style={styles.fullScreenHeader}>
+            <TouchableOpacity
+              style={styles.fullScreenBackButton}
+              onPress={closeFullScreen}
+            >
+              <Text style={styles.fullScreenBackIcon}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.fullScreenTitle}>
+              {fullScreenImageIndex + 1} / {images.length}
+            </Text>
+            <View style={styles.fullScreenPlaceholder} />
+          </View>
+
+          {/* Full Screen Image Gallery */}
+          <ScrollView
+            ref={fullScreenScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleFullScreenScroll}
+            scrollEventThrottle={16}
+            style={styles.fullScreenScrollView}
+          >
+            {images.map((image) => (
+              <View key={image.imageId} style={styles.fullScreenImageContainer}>
+                <Image
+                  source={{ uri: getImageUrl(image.imageUrl) }}
+                  style={styles.fullScreenImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -229,14 +492,14 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  favoriteButton: {
+  favoriteHeaderButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  favoriteIcon: {
-    fontSize: 24,
+  favoriteHeaderIcon: {
+    fontSize: 28,
   },
   content: {
     flex: 1,
@@ -248,8 +511,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
   },
   mainImage: {
-    width: '100%',
-    height: '100%',
+    width: SCREEN_WIDTH,
+    height: 300,
     resizeMode: 'cover',
   },
   noImageContainer: {
@@ -266,6 +529,41 @@ const styles = StyleSheet.create({
   noImageText: {
     fontSize: 16,
     color: '#666',
+  },
+  imageCounter: {
+    position: 'absolute',
+    top: 15,
+    left: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  imageCounterText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  pagination: {
+    position: 'absolute',
+    bottom: 15,
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    marginHorizontal: 4,
+  },
+  paginationDotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   featuredBadge: {
     position: 'absolute',
@@ -350,6 +648,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  section: {
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    marginTop: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 22,
+  },
   quickInfoSection: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -402,17 +716,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     color: '#2E7D32',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    marginTop: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
   },
   infoRow: {
     flexDirection: 'row',
@@ -566,5 +869,81 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Full Screen Image Viewer Styles
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  fullScreenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingTop: 40,
+    paddingBottom: 15,
+    paddingHorizontal: 15,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  fullScreenBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenBackIcon: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  fullScreenTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    flex: 1,
+    textAlign: 'center',
+  },
+  fullScreenPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  fullScreenScrollView: {
+    flex: 1,
+  },
+  fullScreenImageContainer: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: SCREEN_WIDTH,
+    height: '100%',
   },
 });

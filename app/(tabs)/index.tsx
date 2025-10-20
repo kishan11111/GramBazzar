@@ -5,12 +5,20 @@ import React from 'react';
 import AccountScreen from '../screens/AccountScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
 import OtpVerificationScreen from '../screens/OtpVerificationScreen';
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import PostListingScreen from '../screens/PostListingScreen';
 import UserDetailsScreen from '../screens/UserDetailsScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
+
+import EditProfileScreen from '../screens/EditProfileScreen';
+
+import LocalCardCategoryScreen from '../screens/LocalCardCategoryScreen';
+import LocalCardDetailScreen from '../screens/LocalCardDetailScreen';
+import LocalCardHomeScreen from '../screens/LocalCardHomeScreen';
+import LocalCardSearchScreen from '../screens/LocalCardSearchScreen';
 const Stack = createStackNavigator();
 
 export default function Index() {
@@ -44,6 +52,14 @@ export default function Index() {
       <Stack.Screen name="PostDetail" component={PostDetailScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="LocalCardHome" component={LocalCardHomeScreen} />
+
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+
+<Stack.Screen name="LocalCardCategory" component={LocalCardCategoryScreen} />
+<Stack.Screen name="LocalCardDetail" component={LocalCardDetailScreen} />
+<Stack.Screen name="LocalCardSearch" component={LocalCardSearchScreen} />
     </Stack.Navigator>
   );
 }
