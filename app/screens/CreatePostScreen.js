@@ -293,8 +293,11 @@ const handleImagePick = async () => {
         postData.description = `${description}\nજાતિ: ${breed}, ઉંમર: ${age}`;
       }
 
+      console.log('Creating post with data:', JSON.stringify(postData, null, 2));
+
       // Step 1: Create the post
       const response = await apiService.createPost(postData);
+      console.log('Post creation response:', response);
 
       if (response.success) {
         const postId = response.data.postId;

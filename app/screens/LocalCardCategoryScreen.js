@@ -1,86 +1,120 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
+    Image,
     Linking,
-    Modal,
-    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
+import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
 
 export default function LocalCardCategoryScreen({ navigation, route }) {
   const { category } = route.params;
-  const [selectedSubCategory, setSelectedSubCategory] = useState('બધા');
-  const [showFilters, setShowFilters] = useState(false);
-  const [onlyVerified, setOnlyVerified] = useState(false);
-  const [selectedTaluka, setSelectedTaluka] = useState('');
-  
-  // Sample subcategories based on category
-  const getSubCategories = () => {
-    switch(category.key) {
-      case 'labor':
-        return ['બધા', 'મિસ્ત્રી', 'વેલ્ડીંગ', 'લોહાર', 'રંગકામ', 'પ્લમ્બર'];
-      case 'vehicle':
-        return ['બધા', 'ટ્રેક્ટર', 'ટ્રક', 'કાર', 'ઓટો', 'બસ'];
-      case 'event':
-        return ['બધા', 'ડીજે', 'કેટરિંગ', 'ડેકોરેશન', 'ફોટોગ્રાફી', 'બેન્ડ'];
-      default:
-        return ['બધા'];
+
+  // Dynamic data states - SubCategories
+  const [subCategories, setSubCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Dynamic data states - Cards
+  const [selectedSubCategory, setSelectedSubCategory] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [cardsError, setCardsError] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch ONLY subcategories on component mount
+  useEffect(() => {
+    fetchSubCategories();
+  }, []);
+
+  // Fetch subcategories from API
+  const fetchSubCategories = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getLocalCardSubcategories(category.categoryId);
+      if (response.success && response.data) {
+        setSubCategories(response.data);
+      } else {
+        setError('સબ-કેટેગરી લોડ કરવામાં નિષ્ફળ');
+      }
+    } catch (err) {
+      console.error('Error fetching subcategories:', err);
+      setError('સબ-કેટેગરી લોડ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const subCategories = getSubCategories();
+  // Handle subcategory selection - Show cards for this subcategory
+  const handleSubCategorySelect = (subCategory) => {
+    setSelectedSubCategory(subCategory);
+    fetchCards(subCategory, 1, true);
+  };
 
-  // Sample cards data
-  const [cards, setCards] = useState([
-    {
-      id: 1,
-      name: 'લાલજીભાઈ મિસ્ત્રી',
-      category: 'મિસ્ત્રી કામ',
-      location: 'ઉંઝા, ધોળકા',
-      distance: '1.2 km',
-      phone: '9876543210',
-      timing: 'સવારે 9 થી સાંજે 7',
-      verified: true,
-      image: '👷',
-    },
-    {
-      id: 2,
-      name: 'રમેશ ટ્રેક્ટર સેવા',
-      category: 'ટ્રેક્ટર ભાડે',
-      location: 'ખેડા, ધોળકા',
-      distance: '3.5 km',
-      phone: '9898765432',
-      timing: '24 કલાક ઉપલબ્ધ',
-      verified: false,
-      image: '🚜',
-    },
-    {
-      id: 3,
-      name: 'મહેશ વેલ્ડીંગ વર્ક્સ',
-      category: 'વેલ્ડીંગ કામ',
-      location: 'મોટા ગામ, ધોળકા',
-      distance: '5.2 km',
-      phone: '9825123456',
-      timing: 'સવારે 8 થી રાત્રે 8',
-      verified: true,
-      image: '⚡',
-    },
-    {
-      id: 4,
-      name: 'કિશન કારપેન્ટર',
-      category: 'ફર્નિચર કામ',
-      location: 'નવા ગામ, ધોળકા',
-      distance: '2.8 km',
-      phone: '9712345678',
-      timing: 'સવારે 9 થી સાંજે 6',
-      verified: true,
-      image: '🪵',
-    },
-  ]);
+  // Fetch cards from API
+  const fetchCards = async (subCategory, page = 1, replace = false) => {
+    if (cardsLoading) return;
+
+    try {
+      setCardsLoading(true);
+      setCardsError(null);
+
+      const filters = {
+        categoryId: category.categoryId,
+        subCategoryId: subCategory.subCategoryId,
+        pageNumber: page,
+        pageSize: 20,
+      };
+
+      const response = await apiService.browseLocalCards(filters);
+
+      if (response.success && response.data) {
+        const newCards = response.data.data || [];
+        setCards(replace ? newCards : [...cards, ...newCards]);
+        setPageNumber(page);
+        setHasMore(newCards.length === 20);
+      } else {
+        setCardsError('કાર્ડ લોડ કરવામાં નિષ્ફળ');
+      }
+    } catch (err) {
+      console.error('Error fetching cards:', err);
+      setCardsError('કાર્ડ લોડ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+    } finally {
+      setCardsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Handle pull to refresh
+  const handleRefresh = () => {
+    if (selectedSubCategory) {
+      setRefreshing(true);
+      fetchCards(selectedSubCategory, 1, true);
+    }
+  };
+
+  // Handle load more
+  const handleLoadMore = () => {
+    if (hasMore && !cardsLoading && selectedSubCategory) {
+      fetchCards(selectedSubCategory, pageNumber + 1, false);
+    }
+  };
+
+  // Handle back from cards view
+  const handleBackFromCards = () => {
+    setSelectedSubCategory(null);
+    setCards([]);
+    setCardsError(null);
+  };
 
   const handleCall = (phone) => {
     Linking.openURL(`tel:${phone}`);
@@ -90,217 +124,242 @@ export default function LocalCardCategoryScreen({ navigation, route }) {
     Linking.openURL(`https://wa.me/91${phone}`);
   };
 
-  const renderCard = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.card}
-      onPress={() => navigation.navigate('LocalCardDetail', { card: item })}
-      activeOpacity={0.9}
-    >
-      <View style={styles.cardContent}>
-        <View style={styles.cardLeft}>
-          <View style={styles.cardImage}>
-            <Text style={styles.cardImageIcon}>{item.image}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.cardMiddle}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            {item.verified && <Text style={styles.verifiedBadge}>✓</Text>}
-          </View>
-          <Text style={styles.cardCategory}>{item.category}</Text>
-          <Text style={styles.cardLocation}>📍 {item.location} ({item.distance})</Text>
-          <Text style={styles.cardTiming}>⏰ {item.timing}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.cardActions}>
-        <Text style={styles.phoneNumber}>📞 {item.phone.substring(0, 5)}-XXXXX</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.callButton}
-            onPress={() => handleCall(item.phone)}
-          >
-            <Text style={styles.callButtonText}>📞 કોલ</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.whatsappButton}
-            onPress={() => handleWhatsApp(item.phone)}
-          >
-            <Text style={styles.whatsappButtonText}>💬 WhatsApp</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderSubCategory = ({ item }) => {
+    const hasIcon = item.subCategoryIcon && item.subCategoryIcon.trim() !== '';
+    const imageUrl = item.subCategoryImage ? `${API_CONFIG.BASE_URL_Image}${item.subCategoryImage}` : null;
 
-  const FilterModal = () => (
-    <Modal
-      visible={showFilters}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowFilters(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>ફિલ્ટર</Text>
-            <TouchableOpacity onPress={() => setShowFilters(false)}>
-              <Text style={styles.modalCloseButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={styles.filterSectionTitle}>📍 સ્થળ</Text>
-          <View style={styles.filterOptions}>
-            {['બધા', 'ધોળકા', 'ધંધુકા', 'વિરમગામ', 'સાણંદ'].map(taluka => (
-              <TouchableOpacity
-                key={taluka}
-                style={[
-                  styles.filterOption,
-                  selectedTaluka === taluka && styles.filterOptionActive
-                ]}
-                onPress={() => setSelectedTaluka(taluka)}
-              >
-                <Text style={[
-                  styles.filterOptionText,
-                  selectedTaluka === taluka && styles.filterOptionTextActive
-                ]}>
-                  {taluka}
-                </Text>
-              </TouchableOpacity>
-            ))}
+    return (
+      <TouchableOpacity
+        style={styles.subCategoryCard}
+        onPress={() => handleSubCategorySelect(item)}
+        activeOpacity={0.8}
+      >
+        {hasIcon ? (
+          <Text style={styles.subCategoryIcon}>{item.subCategoryIcon}</Text>
+        ) : imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.subCategoryImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.subCategoryIcon}>📋</Text>
+        )}
+        <Text style={styles.subCategoryName} numberOfLines={2}>
+          {item.subCategoryNameGujarati || item.subCategoryNameEnglish}
+        </Text>
+        <Text style={styles.subCategoryCount}>({item.totalCards || 0})</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCard = ({ item }) => {
+    const profileImageUrl = item.profileImage
+      ? `${API_CONFIG.BASE_URL_Image}${item.profileImage}`
+      : null;
+
+    const businessName = item.businessNameGujarati || item.businessName;
+    const location = `${item.villageNameGujarati || item.villageNameEnglish}, ${item.talukaNameGujarati || item.talukaNameEnglish}`;
+    const distance = item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : '';
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('LocalCardDetail', { cardId: item.cardId })}
+        activeOpacity={0.9}
+      >
+        <View style={styles.cardContent}>
+          <View style={styles.cardLeft}>
+            {profileImageUrl ? (
+              <Image
+                source={{ uri: profileImageUrl }}
+                style={styles.cardImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.cardImagePlaceholder}>
+                <Text style={styles.cardImageIcon}>🏪</Text>
+              </View>
+            )}
           </View>
 
-          <Text style={styles.filterSectionTitle}>📏 અંતર</Text>
-          <View style={styles.filterOptions}>
-            {['5 km', '10 km', '25 km', 'બધા'].map(distance => (
-              <TouchableOpacity
-                key={distance}
-                style={styles.filterOption}
-              >
-                <Text style={styles.filterOptionText}>{distance}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.filterSectionTitle}>✓ અન્ય</Text>
-          <TouchableOpacity 
-            style={styles.checkboxRow}
-            onPress={() => setOnlyVerified(!onlyVerified)}
-          >
-            <View style={[styles.checkbox, onlyVerified && styles.checkboxChecked]}>
-              {onlyVerified && <Text style={styles.checkmark}>✓</Text>}
+          <View style={styles.cardMiddle}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardName}>{businessName}</Text>
+              {item.isVerified && <Text style={styles.verifiedBadge}>✓</Text>}
             </View>
-            <Text style={styles.checkboxLabel}>ફક્ત વેરિફાઇડ કાર્ડ જ</Text>
-          </TouchableOpacity>
+            <Text style={styles.cardCategory}>
+              {item.subCategoryNameGujarati || item.subCategoryNameEnglish}
+            </Text>
+            <Text style={styles.cardLocation}>
+              📍 {location} {distance && `(${distance})`}
+            </Text>
+            {item.workingHours && (
+              <Text style={styles.cardTiming}>⏰ {item.workingHours}</Text>
+            )}
+          </View>
+        </View>
 
-          <View style={styles.modalButtons}>
-            <TouchableOpacity 
-              style={styles.resetButton}
-              onPress={() => {
-                setSelectedTaluka('');
-                setOnlyVerified(false);
+        <View style={styles.cardActions}>
+          <Text style={styles.phoneNumber}>
+            📞 {item.primaryPhone ? `${item.primaryPhone.substring(0, 5)}-XXXXX` : 'N/A'}
+          </Text>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleCall(item.primaryPhone || item.whatsAppNumber);
               }}
             >
-              <Text style={styles.resetButtonText}>રીસેટ કરો</Text>
+              <Text style={styles.callButtonText}>📞 કોલ</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.applyButton}
-              onPress={() => setShowFilters(false)}
+            <TouchableOpacity
+              style={styles.whatsappButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleWhatsApp(item.whatsAppNumber || item.primaryPhone);
+              }}
             >
-              <Text style={styles.applyButtonText}>લાગુ કરો</Text>
+              <Text style={styles.whatsappButtonText}>💬 WhatsApp</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </TouchableOpacity>
+    );
+  };
 
+  // If a subcategory is selected, show cards
+  if (selectedSubCategory) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackFromCards}
+          >
+            <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {selectedSubCategory.subCategoryNameGujarati || selectedSubCategory.subCategoryNameEnglish}
+          </Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        {/* Cards List */}
+        {cardsError && !cardsLoading && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{cardsError}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => fetchCards(selectedSubCategory, 1, true)}
+            >
+              <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <FlatList
+          data={cards}
+          renderItem={renderCard}
+          keyExtractor={(item) => item.cardId.toString()}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={
+            !cardsLoading && !cardsError ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>કોઈ કાર્ડ ઉપલબ્ધ નથી</Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            cardsLoading && cards.length > 0 ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+              </View>
+            ) : null
+          }
+        />
+
+        {cardsLoading && cards.length === 0 && (
+          <View style={styles.initialLoadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>કાર્ડ લોડ થઈ રહ્યા છે...</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Otherwise, show subcategories
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{category.name}</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.searchButton}
-            onPress={() => navigation.navigate('LocalCardSearch')}
+        <Text style={styles.headerTitle}>
+          {category.categoryNameGujarati || category.categoryNameEnglish || category.name}
+        </Text>
+        <View style={styles.headerRight} />
+      </View>
+
+      {/* SubCategory Section Title */}
+      <View style={styles.sectionTitleContainer}>
+        <Text style={styles.sectionTitle}>📋 સબ-કેટેગરી પસંદ કરો</Text>
+      </View>
+
+      {/* Loading State */}
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>સબ-કેટેગરી લોડ થઈ રહી છે...</Text>
+        </View>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchSubCategories}
           >
-            <Text style={styles.searchIcon}>🔍</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Text style={styles.filterIcon}>⋮</Text>
+            <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      )}
 
-      {/* SubCategory Tabs */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.subCategoryContainer}
-      >
-        {subCategories.map((subCat) => (
-          <TouchableOpacity
-            key={subCat}
-            style={[
-              styles.subCategoryTab,
-              selectedSubCategory === subCat && styles.subCategoryTabActive
-            ]}
-            onPress={() => setSelectedSubCategory(subCat)}
-          >
-            <Text style={[
-              styles.subCategoryText,
-              selectedSubCategory === subCat && styles.subCategoryTextActive
-            ]}>
-              {subCat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Filter Bar */}
-      <View style={styles.filterBar}>
-        <TouchableOpacity style={styles.filterChip}>
-          <Text style={styles.filterChipText}>📍 તાલુકો ▼</Text>
-        </TouchableOpacity>
-        {onlyVerified && (
-          <TouchableOpacity 
-            style={[styles.filterChip, styles.filterChipActive]}
-            onPress={() => setOnlyVerified(false)}
-          >
-            <Text style={styles.filterChipText}>✓ વેરિફાઇડ જ</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity 
-          style={styles.filterChip}
-          onPress={() => setShowFilters(true)}
-        >
-          <Text style={styles.filterChipText}>⚙️ વધુ</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Cards List */}
-      <FlatList
-        data={cards}
-        renderItem={renderCard}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
-
-      <FilterModal />
+      {/* Subcategories Grid */}
+      {!loading && !error && (
+        <FlatList
+          data={subCategories}
+          renderItem={renderSubCategory}
+          keyExtractor={(item) => item.subCategoryId.toString()}
+          numColumns={2}
+          columnWrapperStyle={styles.subCategoryRow}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>કોઈ સબ-કેટેગરી ઉપલબ્ધ નથી</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -342,80 +401,105 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  headerActions: {
-    flexDirection: 'row',
+  headerRight: {
+    width: 40,
   },
-  searchButton: {
-    width: 35,
-    height: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchIcon: {
-    fontSize: 18,
-  },
-  filterButton: {
-    width: 35,
-    height: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterIcon: {
-    fontSize: 22,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  subCategoryContainer: {
-    backgroundColor: '#FFFFFF',
-    maxHeight: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  subCategoryTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  subCategoryTabActive: {
-    borderBottomColor: '#4CAF50',
-  },
-  subCategoryText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  subCategoryTextActive: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-  filterBar: {
-    flexDirection: 'row',
+  sectionTitleContainer: {
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingVertical: 20,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
   },
-  filterChip: {
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  filterChipActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
-  },
-  filterChipText: {
-    fontSize: 12,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
   },
   listContainer: {
     padding: 15,
+  },
+  subCategoryRow: {
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  subCategoryCard: {
+    flex: 0.48,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.0,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  subCategoryIcon: {
+    fontSize: 40,
+    marginBottom: 8,
+  },
+  subCategoryImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  subCategoryName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  subCategoryCount: {
+    fontSize: 13,
+    color: '#666',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#E65100',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    padding: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -438,6 +522,12 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: '#F1F8E9',
+  },
+  cardImagePlaceholder: {
     width: 60,
     height: 60,
     backgroundColor: '#F1F8E9',
@@ -526,124 +616,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    paddingTop: 15,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalCloseButton: {
-    fontSize: 24,
-    color: '#666',
-  },
-  filterSectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  filterOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 10,
-  },
-  filterOption: {
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  filterOptionActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
-  },
-  filterOptionText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  filterOptionTextActive: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-    borderRadius: 4,
-    marginRight: 10,
+  initialLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
-  checkboxChecked: {
-    backgroundColor: '#4CAF50',
-  },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: '#333',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    marginTop: 25,
-    justifyContent: 'space-between',
-  },
-  resetButton: {
-    flex: 0.45,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 8,
+  footerLoader: {
+    paddingVertical: 20,
     alignItems: 'center',
-  },
-  resetButtonText: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  applyButton: {
-    flex: 0.45,
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  applyButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

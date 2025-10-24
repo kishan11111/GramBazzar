@@ -6,7 +6,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -94,14 +93,14 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={styles.searchContainer}
+          onPress={() => navigation.navigate('Search')}
+          activeOpacity={0.8}
+        >
           <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="શોધો..."
-            placeholderTextColor="#999"
-          />
-        </View>
+          <Text style={styles.searchPlaceholder}>શોધો...</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Main Content */}
@@ -155,11 +154,14 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.actionIcon}>💰</Text>
               <Text style={styles.actionText}>ભાવ જાણો</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Weather')}
+            >
               <Text style={styles.actionIcon}>🌤️</Text>
               <Text style={styles.actionText}>હવામાન</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('LocalCardHome')}
             >
@@ -277,10 +279,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginRight: 10,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#999',
   },
   content: {
     flex: 1,
@@ -322,6 +324,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 10,
+    marginBottom:-200,
   },
   categoryCard: {
     width: '31%',

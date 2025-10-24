@@ -17,6 +17,12 @@ export const API_ENDPOINTS = {
   REGISTER: '/user/auth/register',
   CREATE_POST: '/user/post/create',
   CATEGORY_LIST: '/master/category/list',
+  LOCALCARD_CATEGORY_LIST: '/localcard/category/list',
+  LOCALCARD_SUBCATEGORY_LIST: '/localcard/category',
+  LOCALCARD_BROWSE: '/localcard/browse',
+  LOCALCARD_DETAIL: '/localcard',
+  NOTIFICATIONS: '/user/Notification',
+  NOTIFICATION_STATS: '/user/Notification/stats',
 };
 
 const getAuthToken = async () => {
@@ -244,8 +250,27 @@ export const apiService = {
           body: JSON.stringify(postData),
         }
       );
-      const data = await response.json();
-      return data;
+
+      // Check if response is ok
+      if (!response.ok) {
+        console.error('Create Post Failed - Status:', response.status);
+        const text = await response.text();
+        console.error('Create Post Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      // Get response as text first
+      const text = await response.text();
+      console.log('Create Post Response:', text);
+
+      // Try to parse as JSON
+      try {
+        const data = JSON.parse(text);
+        return data;
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', text);
+        throw new Error('સર્વર તરફથી અમાન્ય પ્રતિસાદ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+      }
     } catch (error) {
       if (error.message === 'UNAUTHORIZED') {
         throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
@@ -531,7 +556,7 @@ export const apiService = {
   updateUserProfile: async (profileData) => {
     try {
       // If it's FormData (with image), use multipart/form-data
-      const headers = profileData instanceof FormData 
+      const headers = profileData instanceof FormData
         ? {} // FormData automatically sets the correct Content-Type
         : { 'Content-Type': 'application/json' };
 
@@ -540,8 +565,8 @@ export const apiService = {
         {
           method: 'PUT',
           headers,
-          body: profileData instanceof FormData 
-            ? profileData 
+          body: profileData instanceof FormData
+            ? profileData
             : JSON.stringify({
                 FirstName: profileData.firstName,
                 LastName: profileData.lastName,
@@ -562,6 +587,244 @@ export const apiService = {
       }
       console.error('Update Profile Error:', error);
       throw error;
+    }
+  },
+
+  deletePost: async (postId) => {
+  try {
+    console.log('🗑️ Deleting post with ID:', postId);
+
+    const response = await authenticatedFetch(`/user/post/${postId}`, {
+      method: 'DELETE',
+    });
+
+    // Some APIs return 204 (no content), handle safely
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : { success: response.ok };
+
+    console.log('🟢 Delete API response:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Delete Post Error:', error);
+    throw error;
+  }
+  },
+
+  updatePostStatus: async (postId, status) => {
+  try {
+    console.log('🔄 Updating post status:', { postId, status });
+
+    const response = await authenticatedFetch(`/user/post/${postId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : { success: response.ok };
+
+    console.log('🟢 Update Post Status API response:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Update Post Status Error:', error);
+    throw error;
+  }
+},
+
+
+  // Get Local Card Categories
+  getLocalCardCategories: async () => {
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.LOCALCARD_CATEGORY_LIST}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get Local Card Categories Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Local Card Subcategories by Category ID
+  getLocalCardSubcategories: async (categoryId) => {
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.LOCALCARD_SUBCATEGORY_LIST}/${categoryId}/subcategories`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get Local Card Subcategories Error:', error);
+      throw error;
+    }
+  },
+
+  // Browse Local Cards with filters
+  browseLocalCards: async (filters = {}) => {
+    try {
+      const {
+        categoryId,
+        subCategoryId,
+        districtId,
+        talukaId,
+        villageId,
+        isVerified,
+        pageNumber = 1,
+        pageSize = 20
+      } = filters;
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (categoryId) params.append('categoryId', categoryId);
+      if (subCategoryId) params.append('subCategoryId', subCategoryId);
+      if (districtId) params.append('districtId', districtId);
+      if (talukaId) params.append('talukaId', talukaId);
+      if (villageId) params.append('villageId', villageId);
+      if (isVerified !== undefined) params.append('isVerified', isVerified);
+      params.append('pageNumber', pageNumber);
+      params.append('pageSize', pageSize);
+
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.LOCALCARD_BROWSE}?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Browse Local Cards Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Local Card Details by ID
+  getLocalCardById: async (cardId) => {
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.LOCALCARD_DETAIL}/${cardId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get Local Card By ID Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Notifications (AUTH REQUIRED)
+  getNotifications: async (pageNumber = 1, pageSize = 20) => {
+    try {
+      // Check if user has auth token first
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('UNAUTHORIZED');
+      }
+
+      const response = await authenticatedFetch(
+        `${API_ENDPOINTS.NOTIFICATIONS}?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      // Check if response is ok before parsing
+      if (!response.ok) {
+        throw new Error('UNAUTHORIZED');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('Get Notifications Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Notification Stats (AUTH REQUIRED)
+  getNotificationStats: async () => {
+    try {
+      // Check if user has auth token first
+      const token = await getAuthToken();
+      if (!token) {
+        // Return empty stats if not logged in (instead of throwing error)
+        return {
+          success: true,
+          data: {
+            totalNotifications: 0,
+            unreadCount: 0,
+            readCount: 0,
+          },
+        };
+      }
+
+      const response = await authenticatedFetch(
+        API_ENDPOINTS.NOTIFICATION_STATS,
+        {
+          method: 'GET',
+        }
+      );
+
+      // Check if response is ok before parsing
+      if (!response.ok) {
+        return {
+          success: true,
+          data: {
+            totalNotifications: 0,
+            unreadCount: 0,
+            readCount: 0,
+          },
+        };
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        // Return empty stats instead of throwing error
+        return {
+          success: true,
+          data: {
+            totalNotifications: 0,
+            unreadCount: 0,
+            readCount: 0,
+          },
+        };
+      }
+      console.error('Get Notification Stats Error:', error);
+      // Return empty stats on any error
+      return {
+        success: true,
+        data: {
+          totalNotifications: 0,
+          unreadCount: 0,
+          readCount: 0,
+        },
+      };
     }
   },
 

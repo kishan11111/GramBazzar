@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
+    Image,
     Linking,
     ScrollView,
     StatusBar,
@@ -11,26 +13,45 @@ import {
     View
 } from 'react-native';
 import BottomNavWrapper from '../DynamicBottomNav';
+import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
+
 export default function LocalCardHomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState(null);
-  
-  const categories = [
-    { id: 1, name: 'ખેતી અને પશુપાલન', icon: '🌾', count: 24, key: 'farming' },
-    { id: 2, name: 'મજૂરી અને કારીગરી', icon: '🔨', count: 156, key: 'labor' },
-    { id: 3, name: 'વાહન ભાડે સેવા', icon: '🚗', count: 89, key: 'vehicle' },
-    { id: 4, name: 'દુકાન અને વેપાર', icon: '🏪', count: 234, key: 'shop' },
-    { id: 5, name: 'ઇવેન્ટ અને પ્રસંગ સેવા', icon: '🎵', count: 67, key: 'event' },
-    { id: 6, name: 'સૌંદર્ય અને સ્વાસ્થ્ય', icon: '💇', count: 45, key: 'beauty' },
-    { id: 7, name: 'શિક્ષણ અને ટ્રેનિંગ', icon: '📚', count: 78, key: 'education' },
-    { id: 8, name: 'મકાન સેવા', icon: '🏠', count: 112, key: 'realestate' },
-  ];
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const nearbyCards = [
     { id: 1, name: 'લાલજીભાઈ મિસ્ત્રી', category: 'મિસ્ત્રી કામ', distance: '1.2 km', verified: true },
     { id: 2, name: 'રમેશ ટ્રેક્ટર સેવા', category: 'ટ્રેક્ટર ભાડે', distance: '3.5 km', verified: false },
     { id: 3, name: 'જયેશ ડીજે સાઉન્ડ', category: 'ડીજે સેવા', distance: '2.1 km', verified: true },
   ];
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getLocalCardCategories();
+
+      if (response.success && response.data) {
+        setCategories(response.data);
+      } else {
+        setError('કેટેગરી લોડ કરવામાં નિષ્ફળ');
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setError('કેટેગરી લોડ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateCardBanner = () => {
     const message = `નમસ્તે,
@@ -52,19 +73,35 @@ export default function LocalCardHomeScreen({ navigation }) {
     );
   };
 
-  const renderCategory = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.categoryCard}
-      onPress={() => navigation.navigate('LocalCardCategory', { 
-        category: item 
-      })}
-      activeOpacity={0.8}
-    >
-      <Text style={styles.categoryIcon}>{item.icon}</Text>
-      <Text style={styles.categoryName}>{item.name}</Text>
-      <Text style={styles.categoryCount}>({item.count})</Text>
-    </TouchableOpacity>
-  );
+  const renderCategory = ({ item }) => {
+    // Use icon if available, otherwise use image
+    const hasIcon = item.categoryIcon && item.categoryIcon.trim() !== '';
+    const imageUrl = item.categoryImage ? `${API_CONFIG.BASE_URL_Image}${item.categoryImage}` : null;
+
+    return (
+      <TouchableOpacity
+        style={styles.categoryCard}
+        onPress={() => navigation.navigate('LocalCardCategory', {
+          category: item
+        })}
+        activeOpacity={0.8}
+      >
+        {hasIcon ? (
+          <Text style={styles.categoryIcon}>{item.categoryIcon}</Text>
+        ) : imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.categoryImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.categoryIcon}>📋</Text>
+        )}
+        <Text style={styles.categoryName}>{item.categoryNameGujarati || item.categoryNameEnglish}</Text>
+        <Text style={styles.categoryCount}>({item.totalCards || 0})</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderNearbyCard = ({ item }) => (
     <TouchableOpacity 
@@ -105,7 +142,7 @@ export default function LocalCardHomeScreen({ navigation }) {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Create Card Banner */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.createBanner}
           onPress={handleCreateCardBanner}
           activeOpacity={0.9}
@@ -125,14 +162,36 @@ export default function LocalCardHomeScreen({ navigation }) {
         {/* Category Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📋 કેટેગરી પસંદ કરો</Text>
-          <FlatList
-            data={categories}
-            renderItem={renderCategory}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={2}
-            columnWrapperStyle={styles.categoryRow}
-            scrollEnabled={false}
-          />
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>કેટેગરી લોડ થઈ રહી છે...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={fetchCategories}
+              >
+                <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
+              </TouchableOpacity>
+            </View>
+          ) : categories.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>કોઈ કેટેગરી ઉપલબ્ધ નથી</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={categories}
+              renderItem={renderCategory}
+              keyExtractor={(item) => item.categoryId.toString()}
+              numColumns={2}
+              columnWrapperStyle={styles.categoryRow}
+              scrollEnabled={false}
+            />
+          )}
         </View>
 
         {/* Nearby Cards Section (Optional) */}
@@ -280,6 +339,12 @@ const styles = StyleSheet.create({
     fontSize: 40,
     marginBottom: 8,
   },
+  categoryImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
   categoryName: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -290,6 +355,52 @@ const styles = StyleSheet.create({
   categoryCount: {
     fontSize: 13,
     color: '#666',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorContainer: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF3E0',
+    borderRadius: 12,
+    marginVertical: 10,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#E65100',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   nearbyList: {
     paddingRight: 15,

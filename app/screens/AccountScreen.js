@@ -6,14 +6,15 @@ import {
   Image,
   RefreshControl,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { apiService } from '../config/api';
-import API_CONFIG from '../config/api';
+import API_CONFIG, { apiService } from '../config/api';
+//import API_CONFIG from '../config/api';
 import BottomNavWrapper from '../DynamicBottomNav';
 
 export default function AccountScreen({ navigation }) {
@@ -59,8 +60,22 @@ export default function AccountScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      
     }
   };
+
+const handleShare = async (post) => {
+  try {
+    const shareMessage = `જુઓ આ જાહેરાત 👇\n\n${post.title}\nકિંમત: ${post.priceString}\n\nજુઓ વધુ વિગત અહીં:\n${API_CONFIG.BASE_URL_Image}${post.mainImageUrl}`;
+    
+    await Share.share({
+      message: shareMessage,
+    });
+  } catch (error) {
+    Alert.alert('ભૂલ', 'શેર કરવામાં મુશ્કેલી આવી');
+    console.error(error);
+  }
+};
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -80,6 +95,73 @@ export default function AccountScreen({ navigation }) {
             navigation.navigate('Welcome');
           },
           style: 'destructive'
+          }
+      ]
+    );
+  };
+
+  const handleDeletePost = (postId) => {
+  Alert.alert(
+    'ડિલીટ', 
+    'શું તમે ખરેખર આ જાહેરાત ડિલીટ કરવા માંગો છો?', 
+    [
+      { text: 'રદ કરો', style: 'cancel' },
+      { 
+        text: 'ડિલીટ', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            // Call API to delete post
+            const response = await apiService.deletePost(postId); 
+            if (response.success) {
+              // Remove the post from local state
+              setUserPosts(prevPosts => prevPosts.filter(post => post.postId !== postId));
+              Alert.alert('સફળ', 'જાહેરાત સફળતાપૂર્વક ડિલીટ થઈ ગઈ છે');
+            } else {
+              Alert.alert('ભૂલ', response.message || 'જાહેરાત ડિલીટ કરવામાં સમસ્યા');
+            }
+          } catch (error) {
+            console.error(error);
+            Alert.alert('ભૂલ', 'જાહેરાત ડિલીટ કરવામાં સમસ્યા');
+          }
+        }
+      }
+    ]
+  );
+  };
+
+  const handleMarkAsSold = (post) => {
+  if (post.status === 'SOLD') {
+    Alert.alert('માહિતી', 'આ પોસ્ટ પહેલેથી જ વેચાઈ ગઈ છે.');
+    return;
+  }
+
+  Alert.alert(
+    'પોસ્ટ વેચાઈ ગઈ?',
+    'શું તમારી પોસ્ટ વેચાઈ ગઈ છે?',
+    [
+      { text: 'ના', style: 'cancel' },
+      {
+        text: 'હા',
+        onPress: async () => {
+          try {
+            const response = await apiService.updatePostStatus(post.postId, 'SOLD');
+            if (response.success) {
+              Alert.alert('સફળતા', 'પોસ્ટની સ્થિતિ "વેચાઈ ગઈ" તરીકે અપડેટ થઈ ગઈ છે.');
+              // Update the post list locally
+              setUserPosts(prevPosts =>
+                prevPosts.map(p =>
+                  p.postId === post.postId ? { ...p, status: 'SOLD' } : p
+                )
+              );
+            } else {
+              Alert.alert('ભૂલ', response.message || 'પોસ્ટ અપડેટ કરવામાં સમસ્યા');
+            }
+          } catch (error) {
+            console.error('❌ Update Post Status Error:', error);
+            Alert.alert('ભૂલ', 'પોસ્ટ અપડેટ કરવામાં સમસ્યા આવી');
+          }
+        }
         }
       ]
     );
@@ -92,6 +174,11 @@ export default function AccountScreen({ navigation }) {
 
   const handlePostClick = (post) => {
     navigation.navigate('PostDetail', { post });
+
+  };
+
+  const handleEditPost = (postId) => {
+    navigation.navigate('EditPost', { postId });
   };
 
   // Calculate total views and favorites
@@ -262,7 +349,9 @@ export default function AccountScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           ) : (
-            userPosts.map((post) => (
+            userPosts.map((post) => {
+              console.log('Post:', post.postId, 'Image:', post.mainImageUrl);
+              return (
               <TouchableOpacity 
                 key={post.postId} 
                 style={styles.postCard}
@@ -281,14 +370,18 @@ export default function AccountScreen({ navigation }) {
                 <View style={styles.postDetails}>
                   <View style={styles.postHeader}>
                     <Text style={styles.postTitle} numberOfLines={1}>{post.title}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      post.status === 'ACTIVE' && styles.statusActive
-                    ]}>
-                      <Text style={styles.statusText}>
-                        {post.status === 'ACTIVE' ? 'સક્રિય' : post.status}
-                      </Text>
-                    </View>
+                    <TouchableOpacity
+                      style={[
+                       styles.statusBadge,
+                       post.status === 'ACTIVE' && styles.statusActive
+                  ]}
+                    onPress={() => handleMarkAsSold(post)}
+                   // disabled={post.status === 'SOLD'} // disable if already sold
+                  >
+                    <Text style={styles.statusText}>
+                    {post.status === 'ACTIVE' ? 'સક્રિય' : post.status === 'SOLD' ? 'વેચાઈ ગઈ' : post.status}
+                    </Text>
+                  </TouchableOpacity>
                   </View>
                   <Text style={styles.postPrice}>{post.priceString}</Text>
                   
@@ -305,19 +398,33 @@ export default function AccountScreen({ navigation }) {
                   </View>
 
                   <View style={styles.postActions}>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <Text style={styles.actionButtonText}>✏️ એડિટ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <Text style={styles.actionButtonText}>🗑️ ડિલીટ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.shareButton]}>
+                    <TouchableOpacity style={styles.actionButton}
+                              onPress={() => handleEditPost(post.id)}  // 👈 pass post.id here
+                               >
+                        <Text style={styles.actionButtonText}>✏️ એડિટ</Text>
+                      </TouchableOpacity>
+
+                      {/* <TouchableOpacity style={styles.actionButton}>
+                        <Text style={styles.actionButtonText}>🗑️ ડિલીટ</Text>
+                      </TouchableOpacity> */}
+                      <TouchableOpacity 
+                           style={styles.actionButton} 
+                          onPress={() => handleDeletePost(post.postId)}
+                          >
+                        <Text style={styles.actionButtonText}>🗑️ ડિલીટ</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.shareButton]}
+                        onPress={() => handleShare(post)}
+                        >
                       <Text style={styles.shareButtonText}>📤 શેર</Text>
-                    </TouchableOpacity>
+                     </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
 
