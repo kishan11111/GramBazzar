@@ -5,6 +5,7 @@ import {
     Image,
     ImageBackground,
     Linking,
+    Modal,
     ScrollView,
     Share,
     StatusBar,
@@ -24,6 +25,9 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   const [cardDetails, setCardDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [allImages, setAllImages] = useState([]);
 
   // Fetch card details on mount
   useEffect(() => {
@@ -34,15 +38,33 @@ export default function LocalCardDetailScreen({ navigation, route }) {
     try {
       setLoading(true);
       setError(null);
+      console.log('🔍 Fetching card details for cardId:', cardId);
       const response = await apiService.getLocalCardById(cardId);
 
+      console.log('📡 Card details response:', JSON.stringify(response, null, 2));
+
       if (response.success && response.data) {
+        console.log('✅ Card details loaded successfully');
+        console.log('📸 Profile Image:', response.data.profileImage);
+        console.log('📸 Cover Image:', response.data.coverImage);
+        console.log('📸 Images array:', response.data.images);
+        console.log('📸 Images array type:', typeof response.data.images);
+        console.log('📸 Images array length:', response.data.images?.length || 0);
+
+        if (response.data.images && Array.isArray(response.data.images)) {
+          console.log('📸 Individual images:');
+          response.data.images.forEach((img, idx) => {
+            console.log(`  Image ${idx}:`, img);
+            console.log(`  Image ${idx} type:`, typeof img);
+          });
+        }
+
         setCardDetails(response.data);
       } else {
         setError('કાર્ડની માહિતી લોડ કરવામાં નિષ્ફળ');
       }
     } catch (err) {
-      console.error('Error fetching card details:', err);
+      console.error('❌ Error fetching card details:', err);
       setError('કાર્ડની માહિતી લોડ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
     } finally {
       setLoading(false);
@@ -190,35 +212,92 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   const renderPhotosTab = () => {
     if (!cardDetails) return null;
 
+    console.log('=================================');
+    console.log('📸 RENDERING PHOTOS TAB');
+    console.log('=================================');
+
     const images = cardDetails.images || [];
-    const allImages = [];
+    const photosList = [];
+
+    console.log('📸 Raw images from cardDetails:', images);
+    console.log('📸 Raw images type:', typeof images);
+    console.log('📸 Raw images length:', images.length);
 
     // Add cover image if available
     if (cardDetails.coverImage) {
-      allImages.push({ uri: `${API_CONFIG.BASE_URL_Image}${cardDetails.coverImage}`, type: 'cover' });
+      const coverUri = `${API_CONFIG.BASE_URL_Image}${cardDetails.coverImage}`;
+      console.log('📸 Adding cover image:', coverUri);
+      photosList.push({ uri: coverUri, type: 'cover', label: 'કવર ફોટો' });
     }
 
     // Add profile image if available
     if (cardDetails.profileImage) {
-      allImages.push({ uri: `${API_CONFIG.BASE_URL_Image}${cardDetails.profileImage}`, type: 'profile' });
+      const profileUri = `${API_CONFIG.BASE_URL_Image}${cardDetails.profileImage}`;
+      console.log('📸 Adding profile image:', profileUri);
+      photosList.push({ uri: profileUri, type: 'profile', label: 'પ્રોફાઇલ ફોટો' });
     }
 
     // Add additional images
+    // The images array could be:
+    // 1. Array of strings: ["/uploads/...", "/uploads/..."]
+    // 2. Array of objects: [{imageUrl: "/uploads/...", imageId: 1}, ...]
     images.forEach((img, idx) => {
-      allImages.push({ uri: `${API_CONFIG.BASE_URL_Image}${img}`, type: 'gallery', index: idx });
+      let imageUrl = '';
+
+      if (typeof img === 'string') {
+        // It's a string URL
+        imageUrl = img;
+      } else if (img && typeof img === 'object') {
+        // It's an object, check for imageUrl property
+        imageUrl = img.imageUrl || img.url || '';
+      }
+
+      if (imageUrl) {
+        const fullUri = `${API_CONFIG.BASE_URL_Image}${imageUrl}`;
+        console.log(`📸 Adding additional image ${idx}:`, fullUri);
+        photosList.push({ uri: fullUri, type: 'gallery', index: idx, label: `ગેલેરી ${idx + 1}` });
+      } else {
+        console.warn(`⚠️ Could not extract image URL from index ${idx}:`, img);
+      }
     });
+
+    console.log('📸 Total images to display:', photosList.length);
+    console.log('📸 All images:', photosList);
+    console.log('=================================');
+
+    const handleImagePress = (index) => {
+      console.log('📸 Image clicked at index:', index);
+      setAllImages(photosList);
+      setSelectedImageIndex(index);
+      setImageViewerVisible(true);
+    };
 
     return (
       <View style={styles.tabContent}>
-        {allImages.length > 0 ? (
+        {photosList.length > 0 ? (
           <View style={styles.photosGrid}>
-            {allImages.map((photo, index) => (
-              <TouchableOpacity key={index} style={styles.photoItem}>
+            {photosList.map((photo, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.photoItem}
+                onPress={() => handleImagePress(index)}
+                activeOpacity={0.8}
+              >
                 <Image
                   source={{ uri: photo.uri }}
                   style={styles.photoImage}
                   resizeMode="cover"
+                  onError={(error) => {
+                    console.error(`❌ Failed to load image ${index}:`, photo.uri, error.nativeEvent.error);
+                  }}
+                  onLoad={() => {
+                    console.log(`✅ Successfully loaded image ${index}:`, photo.uri);
+                  }}
                 />
+                {/* Optional: Show image type label */}
+                <View style={styles.photoLabelContainer}>
+                  <Text style={styles.photoLabel}>{photo.label}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -328,9 +407,107 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   const profileImageUrl = cardDetails.profileImage ? `${API_CONFIG.BASE_URL_Image}${cardDetails.profileImage}` : null;
   const coverImageUrl = cardDetails.coverImage ? `${API_CONFIG.BASE_URL_Image}${cardDetails.coverImage}` : null;
 
+  // Image Viewer Modal
+  const renderImageViewer = () => (
+    <Modal
+      visible={imageViewerVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setImageViewerVisible(false)}
+    >
+      <View style={styles.imageViewerContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
+        {/* Close Button */}
+        <TouchableOpacity
+          style={styles.imageViewerCloseButton}
+          onPress={() => setImageViewerVisible(false)}
+        >
+          <Text style={styles.imageViewerCloseText}>✕</Text>
+        </TouchableOpacity>
+
+        {/* Image Counter */}
+        <View style={styles.imageViewerCounter}>
+          <Text style={styles.imageViewerCounterText}>
+            {selectedImageIndex + 1} / {allImages.length}
+          </Text>
+          {allImages[selectedImageIndex] && (
+            <Text style={styles.imageViewerLabel}>
+              {allImages[selectedImageIndex].label}
+            </Text>
+          )}
+        </View>
+
+        {/* Main Image */}
+        <ScrollView
+          contentContainerStyle={styles.imageViewerScrollContent}
+          maximumZoomScale={3}
+          minimumZoomScale={1}
+        >
+          {allImages[selectedImageIndex] && (
+            <Image
+              source={{ uri: allImages[selectedImageIndex].uri }}
+              style={styles.imageViewerImage}
+              resizeMode="contain"
+            />
+          )}
+        </ScrollView>
+
+        {/* Navigation Arrows */}
+        {allImages.length > 1 && (
+          <>
+            {selectedImageIndex > 0 && (
+              <TouchableOpacity
+                style={[styles.imageViewerArrow, styles.imageViewerArrowLeft]}
+                onPress={() => setSelectedImageIndex(selectedImageIndex - 1)}
+              >
+                <Text style={styles.imageViewerArrowText}>‹</Text>
+              </TouchableOpacity>
+            )}
+            {selectedImageIndex < allImages.length - 1 && (
+              <TouchableOpacity
+                style={[styles.imageViewerArrow, styles.imageViewerArrowRight]}
+                onPress={() => setSelectedImageIndex(selectedImageIndex + 1)}
+              >
+                <Text style={styles.imageViewerArrowText}>›</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {/* Thumbnail Strip */}
+        {allImages.length > 1 && (
+          <View style={styles.imageViewerThumbnails}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {allImages.map((photo, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => setSelectedImageIndex(index)}
+                  style={[
+                    styles.imageViewerThumbnail,
+                    selectedImageIndex === index && styles.imageViewerThumbnailActive
+                  ]}
+                >
+                  <Image
+                    source={{ uri: photo.uri }}
+                    style={styles.imageViewerThumbnailImage}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+
+      {/* Image Viewer Modal */}
+      {renderImageViewer()}
 
       {/* Header with Cover Image */}
       <View style={styles.headerContainer}>
@@ -789,5 +966,122 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: 'bold',
     marginTop: 5,
+  },
+  photoLabelContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  photoLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  // Image Viewer Styles
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  imageViewerCloseButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseText: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  imageViewerCounter: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+  },
+  imageViewerCounterText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  imageViewerLabel: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginTop: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  imageViewerScrollContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerImage: {
+    width: width,
+    height: width,
+  },
+  imageViewerArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  imageViewerArrowLeft: {
+    left: 20,
+  },
+  imageViewerArrowRight: {
+    right: 20,
+  },
+  imageViewerArrowText: {
+    fontSize: 40,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  imageViewerThumbnails: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    height: 80,
+    paddingHorizontal: 10,
+  },
+  imageViewerThumbnail: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+  },
+  imageViewerThumbnailActive: {
+    borderColor: '#4CAF50',
+  },
+  imageViewerThumbnailImage: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -20,6 +20,7 @@ import LocalCardCategoryScreen from '../screens/LocalCardCategoryScreen';
 import LocalCardDetailScreen from '../screens/LocalCardDetailScreen';
 import LocalCardHomeScreen from '../screens/LocalCardHomeScreen';
 import LocalCardSearchScreen from '../screens/LocalCardSearchScreen';
+import CreateLocalCardScreen from '../screens/CreateLocalCardScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import WeatherScreen from '../screens/WeatherScreen';
 const Stack = createStackNavigator();
@@ -64,6 +65,7 @@ export default function Index() {
 <Stack.Screen name="LocalCardCategory" component={LocalCardCategoryScreen} />
 <Stack.Screen name="LocalCardDetail" component={LocalCardDetailScreen} />
 <Stack.Screen name="LocalCardSearch" component={LocalCardSearchScreen} />
+<Stack.Screen name="CreateLocalCard" component={CreateLocalCardScreen} />
 <Stack.Screen name="Notifications" component={NotificationScreen} />
 <Stack.Screen name="Weather" component={WeatherScreen} />
     </Stack.Navigator>

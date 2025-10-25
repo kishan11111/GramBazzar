@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
-    Linking,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -54,23 +52,7 @@ export default function LocalCardHomeScreen({ navigation }) {
   };
 
   const handleCreateCardBanner = () => {
-    const message = `નમસ્તે,
-
-હું મારો બિઝનેસ કાર્ડ "સ્થાનિક કાર્ડ" વિભાગમાં બનાવવા માંગુ છું.
-
-બિઝનેસ નામ: _________________
-કેટેગરી: _________________
-સંપર્ક નંબર: _________________
-સ્થળ: _________________
-
-કૃપા કરીને મને આગળની પ્રક્રિયા વિશે માહિતી આપો.
-
-આભાર`;
-    
-    const whatsappUrl = `https://wa.me/919876543210?text=${encodeURIComponent(message)}`;
-    Linking.openURL(whatsappUrl).catch(err => 
-      Alert.alert('Error', 'WhatsApp is not installed on your device')
-    );
+    navigation.navigate('CreateLocalCard');
   };
 
   const renderCategory = ({ item }) => {

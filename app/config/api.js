@@ -828,6 +828,225 @@ export const apiService = {
     }
   },
 
+  // Create Local Card (AUTH REQUIRED)
+  createLocalCard: async (cardData) => {
+    try {
+      console.log('🚀 API Call: Creating Local Card');
+      console.log('📍 Endpoint: /localcard/create');
+      console.log('📦 Payload:', JSON.stringify(cardData, null, 2));
+
+      const token = await getAuthToken();
+      console.log('🔑 Auth Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
+      const response = await authenticatedFetch(
+        '/localcard/create',
+        {
+          method: 'POST',
+          body: JSON.stringify(cardData),
+        }
+      );
+
+      console.log('📡 Response Status:', response.status);
+      console.log('📡 Response OK:', response.ok);
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Create Local Card Failed - Status:', response.status);
+        console.error('❌ Create Local Card Failed - Response Body:', text);
+
+        try {
+          const errorData = JSON.parse(text);
+          console.error('❌ Parsed Error Data:', JSON.stringify(errorData, null, 2));
+
+          // Return structured error
+          if (errorData.errors) {
+            const errorMessages = Object.values(errorData.errors).flat().join(', ');
+            throw new Error(errorMessages || `Server error: ${response.status}`);
+          }
+
+          throw new Error(errorData.message || `Server error: ${response.status}`);
+        } catch (parseError) {
+          console.error('❌ Could not parse error response as JSON');
+          throw new Error(`Server error: ${response.status} - ${text.substring(0, 100)}`);
+        }
+      }
+
+      const text = await response.text();
+      console.log('✅ Create Local Card Success - Response:', text);
+
+      try {
+        const data = JSON.parse(text);
+        console.log('✅ Parsed Response Data:', JSON.stringify(data, null, 2));
+        return data;
+      } catch (parseError) {
+        console.error('❌ Failed to parse success response as JSON:', text);
+        throw new Error('સર્વર તરફથી અમાન્ય પ્રતિસાદ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+      }
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Create Local Card Error:', error);
+      console.error('❌ Error Stack:', error.stack);
+      throw error;
+    }
+  },
+
+  // Upload Profile Image for Local Card (AUTH REQUIRED)
+  uploadLocalCardProfileImage: async (imageFile) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('UNAUTHORIZED');
+      }
+
+      console.log('📤 Uploading profile image:', imageFile.uri);
+      console.log('📤 Image file name:', imageFile.fileName);
+
+      const uploadResult = await FileSystem.uploadAsync(
+        `${API_CONFIG.BASE_URL}/localcard/upload/profile-image`,
+        imageFile.uri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file', // Changed from 'image' to 'file' to match Postman
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log('📡 Profile image upload status:', uploadResult.status);
+      console.log('📡 Profile image upload response body:', uploadResult.body);
+
+      if (uploadResult.status === 200 || uploadResult.status === 201) {
+        const responseData = JSON.parse(uploadResult.body);
+        console.log('✅ Profile image uploaded:', responseData);
+        return responseData;
+      } else {
+        console.error('❌ Profile image upload failed - Status:', uploadResult.status);
+        console.error('❌ Profile image upload failed - Body:', uploadResult.body);
+        throw new Error(`Upload failed with status ${uploadResult.status} - ${uploadResult.body}`);
+      }
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Upload Profile Image Error:', error);
+      throw error;
+    }
+  },
+
+  // Upload Cover Image for Local Card (AUTH REQUIRED)
+  uploadLocalCardCoverImage: async (imageFile) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('UNAUTHORIZED');
+      }
+
+      console.log('📤 Uploading cover image:', imageFile.uri);
+      console.log('📤 Image file name:', imageFile.fileName);
+
+      const uploadResult = await FileSystem.uploadAsync(
+        `${API_CONFIG.BASE_URL}/localcard/upload/cover-image`,
+        imageFile.uri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file', // Changed from 'image' to 'file' to match Postman
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log('📡 Cover image upload status:', uploadResult.status);
+      console.log('📡 Cover image upload response body:', uploadResult.body);
+
+      if (uploadResult.status === 200 || uploadResult.status === 201) {
+        const responseData = JSON.parse(uploadResult.body);
+        console.log('✅ Cover image uploaded:', responseData);
+        return responseData;
+      } else {
+        console.error('❌ Cover image upload failed - Status:', uploadResult.status);
+        console.error('❌ Cover image upload failed - Body:', uploadResult.body);
+        throw new Error(`Upload failed with status ${uploadResult.status} - ${uploadResult.body}`);
+      }
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Upload Cover Image Error:', error);
+      throw error;
+    }
+  },
+
+  // Upload Additional Images for Local Card (AUTH REQUIRED)
+  uploadLocalCardAdditionalImages: async (imageFiles) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('UNAUTHORIZED');
+      }
+
+      console.log(`📤 Uploading ${imageFiles.length} additional images`);
+
+      const uploadResults = [];
+
+      // Upload all images in one request (if API supports multiple files)
+      // For now, let's upload them one by one since that's what works in CreatePost
+      for (let i = 0; i < imageFiles.length; i++) {
+        const image = imageFiles[i];
+        console.log(`📤 Uploading additional image ${i + 1}/${imageFiles.length}:`, image.uri);
+        console.log(`📤 Image file name:`, image.fileName);
+
+        try {
+          const uploadResult = await FileSystem.uploadAsync(
+            `${API_CONFIG.BASE_URL}/localcard/upload/additional-images`,
+            image.uri,
+            {
+              httpMethod: 'POST',
+              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+              fieldName: 'files', // Changed from 'images' to 'files' (plural for multiple files)
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            }
+          );
+
+          console.log(`📡 Additional image ${i + 1} upload status:`, uploadResult.status);
+          console.log(`📡 Additional image ${i + 1} upload response:`, uploadResult.body);
+
+          if (uploadResult.status === 200 || uploadResult.status === 201) {
+            const responseData = JSON.parse(uploadResult.body);
+            console.log(`✅ Additional image ${i + 1} uploaded:`, responseData);
+            uploadResults.push(responseData);
+          } else {
+            console.error(`❌ Additional image ${i + 1} failed - Status:`, uploadResult.status);
+            console.error(`❌ Additional image ${i + 1} failed - Body:`, uploadResult.body);
+            throw new Error(`Upload failed with status ${uploadResult.status} - ${uploadResult.body}`);
+          }
+        } catch (uploadError) {
+          console.error(`❌ Error uploading additional image ${i + 1}:`, uploadError);
+          throw uploadError;
+        }
+      }
+
+      return {
+        success: true,
+        message: `${imageFiles.length} additional images uploaded successfully`,
+        data: uploadResults,
+      };
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Upload Additional Images Error:', error);
+      throw error;
+    }
+  },
+
 };
 
 export default API_CONFIG;
