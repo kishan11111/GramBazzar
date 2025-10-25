@@ -181,6 +181,36 @@ const handleShare = async (post) => {
     navigation.navigate('EditPost', { postId });
   };
 
+  const handleMaruCard = async () => {
+    try {
+      console.log('🎴 Maru Card button clicked');
+
+      // Fetch user's local cards
+      const response = await apiService.getMyLocalCards(1, 20);
+
+      console.log('📡 My Cards Response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data && response.data.data && response.data.data.length > 0) {
+        // User has cards, navigate to the first card's detail page
+        const firstCard = response.data.data[0];
+        console.log('✅ User has cards, navigating to card:', firstCard.cardId);
+        navigation.navigate('LocalCardDetail', { cardId: firstCard.cardId });
+      } else {
+        // No cards found, navigate to create card screen
+        console.log('ℹ️ No cards found, navigating to create card screen');
+        navigation.navigate('CreateLocalCard');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching local cards:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+
+      // Show more specific error message if available
+      const errorMessage = error.message || 'કાર્ડની માહિતી લોડ કરવામાં સમસ્યા';
+      Alert.alert('ભૂલ', errorMessage);
+    }
+  };
+
   // Calculate total views and favorites
   const totalViews = userPosts.reduce((sum, post) => sum + post.viewCount, 0);
   const totalFavorites = userPosts.reduce((sum, post) => sum + post.favoriteCount, 0);
@@ -300,7 +330,7 @@ const handleShare = async (post) => {
         <View style={styles.actionsSection}>
           <Text style={styles.sectionTitle}>ઝડપી ઍક્શન</Text>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('CreatePost')}
             >
@@ -311,9 +341,12 @@ const handleShare = async (post) => {
               <Text style={styles.actionIcon}>❤️</Text>
               <Text style={styles.actionText}>સાચવેલું</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
-              <Text style={styles.actionIcon}>💬</Text>
-              <Text style={styles.actionText}>મેસેજ</Text>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleMaruCard}
+            >
+              <Text style={styles.actionIcon}>🎴</Text>
+              <Text style={styles.actionText}>મારું કાર્ડ</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionCard}>
               <Text style={styles.actionIcon}>⭐</Text>

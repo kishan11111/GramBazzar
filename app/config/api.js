@@ -1047,6 +1047,47 @@ export const apiService = {
     }
   },
 
+  // Get User's Local Cards (AUTH REQUIRED)
+  getMyLocalCards: async (pageNumber = 1, pageSize = 20) => {
+    try {
+      console.log('🔍 Fetching my local cards...');
+      const response = await authenticatedFetch(
+        `/localcard/my-cards?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      console.log('📡 Response Status:', response.status);
+      console.log('📡 Response OK:', response.ok);
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Get My Local Cards Failed - Status:', response.status);
+        console.error('❌ Get My Local Cards Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const text = await response.text();
+      console.log('📡 Raw Response:', text);
+
+      try {
+        const data = JSON.parse(text);
+        console.log('✅ Parsed Response:', JSON.stringify(data, null, 2));
+        return data;
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', text);
+        throw new Error('સર્વર તરફથી અમાન્ય પ્રતિસાદ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+      }
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('Get My Local Cards Error:', error);
+      throw error;
+    }
+  },
+
 };
 
 export default API_CONFIG;

@@ -294,10 +294,6 @@ export default function LocalCardDetailScreen({ navigation, route }) {
                     console.log(`✅ Successfully loaded image ${index}:`, photo.uri);
                   }}
                 />
-                {/* Optional: Show image type label */}
-                <View style={styles.photoLabelContainer}>
-                  <Text style={styles.photoLabel}>{photo.label}</Text>
-                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -764,7 +760,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   tabContent: {
-    padding: 20,
+    padding: 15,
   },
   detailSection: {
     marginBottom: 20,
@@ -819,12 +815,21 @@ const styles = StyleSheet.create({
   photosGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -5,
+    justifyContent: 'space-between',
+    marginTop: 5,
   },
   photoItem: {
-    width: (width - 50) / 3,
-    height: (width - 50) / 3,
-    margin: 5,
+    width: (width - 45) / 3, // 15px padding on each side (30) + 15px gap (15) = 45
+    height: (width - 45) / 3,
+    marginBottom: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F0F0F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   photoPlaceholder: {
     width: '100%',
