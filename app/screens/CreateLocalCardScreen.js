@@ -57,9 +57,7 @@ export default function CreateLocalCardScreen({ navigation }) {
   const [villagesLoading, setVillagesLoading] = useState(false);
 
   // Business Info
-  const [businessName, setBusinessName] = useState('');
   const [businessNameGujarati, setBusinessNameGujarati] = useState('');
-  const [businessDescription, setBusinessDescription] = useState('');
   const [businessDescriptionGujarati, setBusinessDescriptionGujarati] = useState('');
 
   // Contact Info
@@ -71,8 +69,6 @@ export default function CreateLocalCardScreen({ navigation }) {
 
   // Address
   const [fullAddress, setFullAddress] = useState('');
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
 
   // Working Hours
   const [workingHours, setWorkingHours] = useState('');
@@ -334,12 +330,8 @@ export default function CreateLocalCardScreen({ navigation }) {
   // Form validation and submission
   const handleSubmit = async () => {
     // Validation
-    if (!businessName) {
-      Alert.alert('ભૂલ', 'કૃપા કરીને બિઝનેસનું નામ દાખલ કરો');
-      return;
-    }
     if (!businessNameGujarati) {
-      Alert.alert('ભૂલ', 'કૃપા કરીને બિઝનેસનું ગુજરાતી નામ દાખલ કરો');
+      Alert.alert('ભૂલ', 'કૃપા કરીને બિઝનેસનું નામ દાખલ કરો');
       return;
     }
     if (!selectedCategory) {
@@ -425,9 +417,9 @@ export default function CreateLocalCardScreen({ navigation }) {
 
       // Step 2: Prepare card data with image URLs
       const cardData = {
-        businessName: businessName,
+        businessName: businessNameGujarati,
         businessNameGujarati: businessNameGujarati,
-        businessDescription: businessDescription || '',
+        businessDescription: businessDescriptionGujarati || '',
         businessDescriptionGujarati: businessDescriptionGujarati || '',
         categoryId: selectedCategory.categoryId,
         subCategoryId: selectedSubcategory.subCategoryId,
@@ -440,8 +432,8 @@ export default function CreateLocalCardScreen({ navigation }) {
         talukaId: selectedTaluka.talukaId,
         villageId: selectedVillage.villageId,
         fullAddress: fullAddress,
-        latitude: latitude ? parseFloat(latitude) : 0,
-        longitude: longitude ? parseFloat(longitude) : 0,
+        latitude: null,
+        longitude: null,
         workingHours: workingHours || '9:00 AM - 6:00 PM',
         workingDays: workingDays || 'Monday to Saturday',
         isOpen24Hours: isOpen24Hours,
@@ -655,18 +647,7 @@ export default function CreateLocalCardScreen({ navigation }) {
         <Text style={styles.sectionHeader}>📋 બિઝનેસ માહિતી</Text>
 
         <View style={styles.section}>
-          <Text style={styles.label}>બિઝનેસનું નામ (અંગ્રેજી) *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="દા.ત. Shree Electronics"
-            placeholderTextColor="#999"
-            value={businessName}
-            onChangeText={setBusinessName}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>બિઝનેસનું નામ (ગુજરાતી) *</Text>
+          <Text style={styles.label}>બિઝનેસનું નામ *</Text>
           <TextInput
             style={styles.input}
             placeholder="દા.ત. શ્રી ઇલેક્ટ્રોનિક્સ"
@@ -677,23 +658,10 @@ export default function CreateLocalCardScreen({ navigation }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>બિઝનેસ વર્ણન (અંગ્રેજી)</Text>
+          <Text style={styles.label}>બિઝનેસ વર્ણન</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="બિઝનેસ વિશે વિગતવાર માહિતી આપો..."
-            placeholderTextColor="#999"
-            value={businessDescription}
-            onChangeText={setBusinessDescription}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>બિઝનેસ વર્ણન (ગુજરાતી)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="બિઝનેસ વિશે ગુજરાતીમાં માહિતી આપો..."
             placeholderTextColor="#999"
             value={businessDescriptionGujarati}
             onChangeText={setBusinessDescriptionGujarati}
@@ -916,31 +884,6 @@ export default function CreateLocalCardScreen({ navigation }) {
           />
         </View>
 
-        <View style={styles.row}>
-          <View style={styles.halfInput}>
-            <Text style={styles.label}>લેટિટ્યુડ</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="દા.ત. 22.6939"
-              placeholderTextColor="#999"
-              value={latitude}
-              onChangeText={setLatitude}
-              keyboardType="decimal-pad"
-            />
-          </View>
-          <View style={styles.halfInput}>
-            <Text style={styles.label}>લોન્ગિટ્યુડ</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="દા.ત. 72.8616"
-              placeholderTextColor="#999"
-              value={longitude}
-              onChangeText={setLongitude}
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
         {/* Working Hours Section */}
         <Text style={styles.sectionHeader}>🕐 કામકાજના કલાકો</Text>
 
@@ -1063,9 +1006,9 @@ export default function CreateLocalCardScreen({ navigation }) {
 
         {/* Info Box */}
         <View style={styles.infoBox}>
-          <Text style={styles.infoIcon}>ℹ️</Text>
+          <Text style={styles.infoIcon}>🎉</Text>
           <Text style={styles.infoText}>
-            તમારું લોકલ કાર્ડ ચકાસણી પછી 24 કલાકમાં લાઇવ થશે
+            હવે સંપૂર્ણ ફ્રી માં તમારું લોકલ કાર્ડ બનાવો! તમારું લોકલ કાર્ડ ચકાસણી પછી 24 કલાકમાં લાઇવ થશે
           </Text>
         </View>
 

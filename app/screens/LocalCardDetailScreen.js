@@ -14,8 +14,10 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService } from '../config/api';
 import API_CONFIG from '../config/api';
+import VisitingCardGenerator from '../components/VisitingCardGenerator';
 
 const { width } = Dimensions.get('window');
 
@@ -28,16 +30,31 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [allImages, setAllImages] = useState([]);
+  const [isOwnCard, setIsOwnCard] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   // Fetch card details on mount
   useEffect(() => {
-    fetchCardDetails();
+    loadCardAndCheckOwnership();
   }, [cardId]);
 
-  const fetchCardDetails = async () => {
+  const loadCardAndCheckOwnership = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // First, get the current user profile
+      console.log('👤 Fetching current user profile...');
+      const userProfile = await apiService.getUserProfile();
+      let userId = null;
+
+      if (userProfile.success && userProfile.data) {
+        userId = userProfile.data.userId;
+        setCurrentUserId(userId);
+        console.log('✅ Current userId:', userId);
+      }
+
+      // Then fetch card details
       console.log('🔍 Fetching card details for cardId:', cardId);
       const response = await apiService.getLocalCardById(cardId);
 
@@ -45,6 +62,8 @@ export default function LocalCardDetailScreen({ navigation, route }) {
 
       if (response.success && response.data) {
         console.log('✅ Card details loaded successfully');
+        console.log('🆔 Card userId:', response.data.userId);
+        console.log('🆔 Current userId:', userId);
         console.log('📸 Profile Image:', response.data.profileImage);
         console.log('📸 Cover Image:', response.data.coverImage);
         console.log('📸 Images array:', response.data.images);
@@ -60,6 +79,16 @@ export default function LocalCardDetailScreen({ navigation, route }) {
         }
 
         setCardDetails(response.data);
+
+        // Check if this is the user's own card
+        if (userId && response.data.userId === userId) {
+          console.log('✅ This is the user\'s own card!');
+          setIsOwnCard(true);
+        } else {
+          console.log('ℹ️ This is NOT the user\'s own card');
+          console.log('ℹ️ userId:', userId, 'card.userId:', response.data.userId);
+          setIsOwnCard(false);
+        }
       } else {
         setError('કાર્ડની માહિતી લોડ કરવામાં નિષ્ફળ');
       }
@@ -602,6 +631,16 @@ export default function LocalCardDetailScreen({ navigation, route }) {
             સ્થળ
           </Text>
         </TouchableOpacity>
+        {isOwnCard && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'card' && styles.tabActive]}
+            onPress={() => setActiveTab('card')}
+          >
+            <Text style={[styles.tabText, activeTab === 'card' && styles.tabTextActive]}>
+              કાર્ડ
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tab Content */}
@@ -609,6 +648,11 @@ export default function LocalCardDetailScreen({ navigation, route }) {
         {activeTab === 'details' && renderDetailsTab()}
         {activeTab === 'photos' && renderPhotosTab()}
         {activeTab === 'location' && renderLocationTab()}
+        {activeTab === 'card' && isOwnCard && (
+          <View style={styles.tabContent}>
+            <VisitingCardGenerator cardDetails={cardDetails} />
+          </View>
+        )}
       </ScrollView>
     </View>
   );

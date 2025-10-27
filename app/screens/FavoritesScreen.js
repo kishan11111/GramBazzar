@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { apiService } from '../config/api';
+import API_CONFIG, { apiService } from '../config/api';
 import BottomNavWrapper from '../DynamicBottomNav';
 export default function FavoritesScreen({ navigation }) {
   const [favorites, setFavorites] = useState([]);
@@ -33,15 +33,40 @@ export default function FavoritesScreen({ navigation }) {
 
   const loadFavorites = async () => {
     try {
+      console.log('🔄 FavoritesScreen: Starting to load favorites...');
       setLoading(true);
+
       const response = await apiService.getUserFavorites(1, 20);
-      
+      console.log('📦 FavoritesScreen: API Response:', JSON.stringify(response, null, 2));
+
       if (response.success) {
-        setFavorites(response.data.items || []);
+        console.log('✅ FavoritesScreen: API call successful');
+        console.log('📊 FavoritesScreen: Response data structure:', {
+          hasData: !!response.data,
+          hasItems: !!(response.data && response.data.items),
+          itemsCount: response.data?.items?.length || 0,
+        });
+
+        const items = response.data.items || [];
+        console.log('📝 FavoritesScreen: Setting favorites:', items.length, 'items');
+
+        if (items.length > 0) {
+          console.log('📝 FavoritesScreen: First item:', JSON.stringify(items[0], null, 2));
+        } else {
+          console.log('⚠️ FavoritesScreen: No favorite items found in response');
+        }
+
+        setFavorites(items);
       } else {
+        console.error('❌ FavoritesScreen: API call failed');
+        console.error('❌ FavoritesScreen: Response:', JSON.stringify(response, null, 2));
         Alert.alert('ભૂલ', 'ડેટા લોડ કરવામાં સમસ્યા');
       }
     } catch (error) {
+      console.error('❌ FavoritesScreen: Error loading favorites:', error);
+      console.error('❌ FavoritesScreen: Error message:', error.message);
+      console.error('❌ FavoritesScreen: Error stack:', error.stack);
+
       if (error.message.includes('લૉગિન')) {
         Alert.alert('સત્ર સમાપ્ત', error.message, [
           {
@@ -53,9 +78,10 @@ export default function FavoritesScreen({ navigation }) {
           }
         ]);
       } else {
-        Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા');
+        Alert.alert('ભૂલ', 'કનેક્શન સમસ્યા: ' + error.message);
       }
     } finally {
+      console.log('🏁 FavoritesScreen: Finished loading, setting loading to false');
       setLoading(false);
       setRefreshing(false);
     }
@@ -99,9 +125,14 @@ export default function FavoritesScreen({ navigation }) {
   };
 
   const renderFavoriteItem = ({ item }) => {
-    const imageUrl = item.images && item.images.length > 0
-      ? `http://lokbazzar.com/${item.images[0]}`
+    console.log('🎨 FavoritesScreen: Rendering item:', item.postId, item.title);
+
+    // Use mainImageUrl from the response instead of images array
+    const imageUrl = item.mainImageUrl
+      ? `${API_CONFIG.BASE_URL_Image}${item.mainImageUrl}`
       : null;
+
+    console.log('🖼️ FavoritesScreen: Image URL for post', item.postId, ':', imageUrl);
 
     return (
       <TouchableOpacity
@@ -199,10 +230,12 @@ export default function FavoritesScreen({ navigation }) {
     );
   }
 
+  console.log('🎬 FavoritesScreen: Rendering component, favorites count:', favorites.length);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.placeholder} />

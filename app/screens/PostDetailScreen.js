@@ -7,6 +7,7 @@ import {
   Linking,
   Modal,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
@@ -91,6 +92,37 @@ export default function PostDetailScreen({ route, navigation }) {
     if (postDetail?.contactPhone && postDetail?.title && postDetail?.priceString) {
       const message = `હેલો, હું ${postDetail.title} વિશે પૂછપરછ કરવા માંગું છું. કિંમત: ${postDetail.priceString}`;
       Linking.openURL(`whatsapp://send?phone=${postDetail.contactPhone}&text=${encodeURIComponent(message)}`);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      // Generate deep link for the post
+      const postUrl = `${API_CONFIG.BASE_URL_Image}post/${postDetail.postId}`;
+
+      // Create share message
+      const shareMessage = `જુઓ આ જાહેરાત 👇\n\n${postDetail.title}\nકિંમત: ${postDetail.priceString}\n\n${postDetail.description ? postDetail.description.substring(0, 100) + '...\n\n' : ''}જુઓ વધુ વિગત અહીં:\n${postUrl}`;
+
+      const result = await Share.share({
+        message: shareMessage,
+        title: postDetail.title,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // Shared with activity type of result.activityType
+          console.log('Shared via:', result.activityType);
+        } else {
+          // Shared successfully
+          Alert.alert('શેર કર્યું', 'પોસ્ટ સફળતાપૂર્વક શેર કરવામાં આવી');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // Dismissed
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert('ભૂલ', 'શેર કરવામાં સમસ્યા');
     }
   };
 
@@ -301,11 +333,11 @@ export default function PostDetailScreen({ route, navigation }) {
 
         {/* Quick Info */}
         <View style={styles.quickInfoSection}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoIcon}>📊</Text>
-            <Text style={styles.infoLabel}>સ્થિતિ</Text>
-            <Text style={styles.infoValue}>{postDetail.condition}</Text>
-          </View>
+          <TouchableOpacity style={styles.infoCard} onPress={handleShare} activeOpacity={0.7}>
+            <Text style={styles.infoIcon}>📤</Text>
+            <Text style={styles.infoLabel}>શેર કરો</Text>
+            <Text style={styles.infoValue}>Share</Text>
+          </TouchableOpacity>
           <View style={styles.infoCard}>
             <Text style={styles.infoIcon}>👁️</Text>
             <Text style={styles.infoLabel}>Views</Text>

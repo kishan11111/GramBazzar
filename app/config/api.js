@@ -70,6 +70,8 @@ export const apiService = {
   // Send OTP
   sendOTP: async (mobile, purpose = 'REGISTER') => {
     try {
+      console.log('📱 Sending OTP...');
+
       const response = await fetch(
         `${API_CONFIG.BASE_URL}${API_ENDPOINTS.SEND_OTP}`,
         {
@@ -83,10 +85,23 @@ export const apiService = {
           }),
         }
       );
-      const data = await response.json();
-      return data;
+
+      // Get response as text first to see what we're getting
+      const text = await response.text();
+
+      // Try to parse as JSON
+      try {
+        const data = JSON.parse(text);
+        if (data.success) {
+          console.log('✅ OTP sent successfully');
+        }
+        return data;
+      } catch (parseError) {
+        console.error('❌ Failed to parse OTP response');
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      console.error('Send OTP Error:', error);
+      console.error('❌ Send OTP Error:', error.message);
       throw error;
     }
   },
@@ -94,6 +109,8 @@ export const apiService = {
   // Verify OTP
   verifyOTP: async (mobile, otp, purpose = 'REGISTER') => {
     try {
+      console.log('🔐 Verifying OTP...');
+
       const response = await fetch(
         `${API_CONFIG.BASE_URL}${API_ENDPOINTS.VERIFY_OTP}`,
         {
@@ -108,10 +125,23 @@ export const apiService = {
           }),
         }
       );
-      const data = await response.json();
-      return data;
+
+      // Get response as text first to see what we're getting
+      const text = await response.text();
+
+      // Try to parse as JSON
+      try {
+        const data = JSON.parse(text);
+        if (data.success) {
+          console.log('✅ OTP verified successfully');
+        }
+        return data;
+      } catch (parseError) {
+        console.error('❌ Failed to parse OTP response');
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      console.error('Verify OTP Error:', error);
+      console.error('❌ Verify OTP Error:', error.message);
       throw error;
     }
   },
@@ -217,8 +247,12 @@ export const apiService = {
   },
   
   // Login User
-  loginUser: async (mobile, password = 'Test@123') => {
+  loginUser: async (mobile, password = 'Test@123', silentFail = false) => {
     try {
+      if (!silentFail) {
+        console.log('🔑 Logging in user...');
+      }
+
       const response = await fetch(
         `${API_CONFIG.BASE_URL}/user/auth/login`,
         {
@@ -232,10 +266,39 @@ export const apiService = {
           }),
         }
       );
-      const data = await response.json();
-      return data;
+
+      // Get response as text first to see what we're getting
+      const text = await response.text();
+
+      // If response is not ok and we're in silent mode, just return failed response
+      if (!response.ok && silentFail) {
+        return { success: false, message: 'User not found or invalid credentials' };
+      }
+
+      // Try to parse as JSON
+      try {
+        const data = JSON.parse(text);
+        if (!silentFail) {
+          console.log('✅ Login successful');
+        }
+        return data;
+      } catch (parseError) {
+        // If in silent mode, return failure instead of throwing
+        if (silentFail) {
+          return { success: false, message: 'User not found' };
+        }
+
+        console.error('❌ Failed to parse response as JSON');
+        console.error('❌ Raw text was:', text.substring(0, 100));
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      console.error('Login Error:', error);
+      // If in silent mode, return failure instead of throwing
+      if (silentFail) {
+        return { success: false, message: 'User not found' };
+      }
+
+      console.error('❌ Login Error:', error.message);
       throw error;
     }
   },
@@ -495,19 +558,46 @@ export const apiService = {
   // Get User's Favorite Posts (AUTH REQUIRED)
   getUserFavorites: async (pageNumber = 1, pageSize = 20) => {
     try {
+      console.log('🔍 Fetching user favorites...');
+      console.log('📍 Endpoint: /user/post/favorites');
+      console.log('📦 Parameters:', { pageNumber, pageSize });
+
+      const token = await getAuthToken();
+      console.log('🔑 Auth Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
       const response = await authenticatedFetch(
         `/user/post/favorites?pageNumber=${pageNumber}&pageSize=${pageSize}`,
         {
           method: 'GET',
         }
       );
-      const data = await response.json();
-      return data;
+
+      console.log('📡 Response Status:', response.status);
+      console.log('📡 Response OK:', response.ok);
+
+      const text = await response.text();
+      console.log('📡 Raw Response:', text);
+
+      try {
+        const data = JSON.parse(text);
+        console.log('✅ Parsed Response Data:', JSON.stringify(data, null, 2));
+
+        if (data.success && data.data) {
+          console.log('📊 Total Favorites:', data.data.items ? data.data.items.length : 0);
+        }
+
+        return data;
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', text);
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
       if (error.message === 'UNAUTHORIZED') {
+        console.error('❌ Unauthorized - Session expired');
         throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
       }
-      console.error('Get Favorites Error:', error);
+      console.error('❌ Get Favorites Error:', error);
+      console.error('❌ Error Stack:', error.stack);
       throw error;
     }
   },
@@ -1084,6 +1174,66 @@ export const apiService = {
         throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
       }
       console.error('Get My Local Cards Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Nearby Local Cards
+  getNearbyLocalCards: async (latitude, longitude, pageNumber = 1, pageSize = 20) => {
+    try {
+      console.log('🔍 Fetching nearby local cards...');
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/localcard/nearby?latitude=${latitude}&longitude=${longitude}&pageNumber=${pageNumber}&pageSize=${pageSize}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Get Nearby Cards Failed - Status:', response.status);
+        console.error('❌ Get Nearby Cards Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Nearby cards fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('Get Nearby Cards Error:', error);
+      throw error;
+    }
+  },
+
+  // Search Local Cards
+  searchLocalCards: async (searchTerm, pageNumber = 1, pageSize = 20) => {
+    try {
+      console.log('🔍 Searching local cards with term:', searchTerm);
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/localcard/search?searchTerm=${encodeURIComponent(searchTerm)}&pageNumber=${pageNumber}&pageSize=${pageSize}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Search Cards Failed - Status:', response.status);
+        console.error('❌ Search Cards Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Search results fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('Search Cards Error:', error);
       throw error;
     }
   },

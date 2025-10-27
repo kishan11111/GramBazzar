@@ -83,12 +83,14 @@ const handleVerifyOtp = async () => {
     }
 
     // Step 2: OTP verified - Try to login (existing user check)
-    const loginResponse = await apiService.loginUser(phone, 'Test@123');
-    
+    // Use silentFail=true to avoid showing errors for new users
+    const loginResponse = await apiService.loginUser(phone, 'Test@123', true);
+
     if (loginResponse.success) {
+      // Existing user - login successful
       await AsyncStorage.setItem('authToken', loginResponse.data.accessToken);
       await AsyncStorage.setItem('userData', JSON.stringify(loginResponse.data.user));
-      console.log('Login successful:', loginResponse.data);
+      console.log('✅ Existing user logged in successfully');
 
       // Reset navigation stack to Dashboard (remove all previous screens)
       navigation.dispatch(
@@ -98,13 +100,14 @@ const handleVerifyOtp = async () => {
         })
       );
     } else {
-      // Replace current screen with UserDetails (remove OTP screen from stack)
+      // New user - needs to complete registration
+      console.log('ℹ️ New user, navigating to registration');
       navigation.replace('UserDetails', {
         phone: phone,
         otp: otpCode
       });
     }
-    
+
   } catch (error) {
     alert('કનેક્શન સમસ્યા. કૃપા કરીને ફરી પ્રયાસ કરો.');
     console.error('Verify OTP Error:', error);
@@ -214,7 +217,7 @@ const handleVerifyOtp = async () => {
           <Text style={styles.supportIcon}>📞</Text>
           <Text style={styles.supportText}>
             મદદ જોઈએ છે? અમને કૉલ કરો{'\n'}
-            <Text style={styles.supportNumber}>1800-XXX-XXXX</Text>
+            <Text style={styles.supportNumber}>7621964168</Text>
           </Text>
         </View>
 

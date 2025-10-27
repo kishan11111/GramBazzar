@@ -13,7 +13,7 @@ import {
 import BottomNavWrapper from '../DynamicBottomNav';
 
 import { BannerShimmer, CategoryShimmer } from '../components/Shimmer';
-import { apiService } from '../config/api';
+import API_CONFIG, { apiService } from '../config/api';
 
 // Generate light unique colors for categories
 const generateLightColor = (index) => {
@@ -49,6 +49,7 @@ export default function DashboardScreen({ navigation }) {
           id: cat.categoryId,
           name: cat.categoryNameGujarati,
           icon: cat.categoryIcon || '📦',
+          categoryImage: cat.categoryImage, // Dynamic image from API
           categoryId: cat.categoryId,
           color: generateLightColor(index),
         }));
@@ -111,7 +112,7 @@ export default function DashboardScreen({ navigation }) {
         ) : (
           <View style={styles.banner}>
             <View style={styles.bannerContent}>
-              <Text style={styles.bannerText}>🛒 સ્થાનિક બજાર!</Text>
+              <Text style={styles.bannerText}>🛒 લોકબજાર</Text>
               <Text style={styles.bannerSubtext}>
                 તમારી જરૂરિયાત, અમારી સેવા
               </Text>
@@ -135,7 +136,15 @@ export default function DashboardScreen({ navigation }) {
                 activeOpacity={0.8}
                 onPress={() => handleCategoryClick(category)}
               >
-                <Text style={styles.categoryIcon}>{category.icon}</Text>
+                {category.categoryImage ? (
+                  <Image
+                    source={{ uri: `${API_CONFIG.BASE_URL_Image}${category.categoryImage}` }}
+                    style={styles.categoryImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.categoryIcon}>{category.icon}</Text>
+                )}
                 <Text style={styles.categoryName}>{category.name}</Text>
               </TouchableOpacity>
             ))}
@@ -341,6 +350,11 @@ const styles = StyleSheet.create({
   },
   categoryIcon: {
     fontSize: 40,
+    marginBottom: 8,
+  },
+  categoryImage: {
+    width: 50,
+    height: 50,
     marginBottom: 8,
   },
   categoryName: {
