@@ -3,9 +3,8 @@ import * as FileSystem from 'expo-file-system/legacy'; // ✅ Use legacy API for
 
 // API Configuration
 const API_CONFIG = {
-  // BASE_URL: 'http://lokbazzar.com/api',
-   BASE_URL: 'http://lokbazzar.com/api',
-     BASE_URL_Image: 'http://lokbazzar.com/',
+  BASE_URL: 'https://lokbazzar.com/api',
+  BASE_URL_Image: 'https://lokbazzar.com/',
   TIMEOUT: 30000,
 };
 
