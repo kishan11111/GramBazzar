@@ -83,10 +83,7 @@ const handleSendOTP = async () => {
         {/* Phone Input */}
         <View style={styles.inputContainer}>
           <View style={styles.countryCode}>
-            <Image
-              source={{ uri: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/41/Flag_of_India.svg/320px-Flag_of_India.svg.png' }}
-              style={styles.flag}
-            />
+            <Text style={styles.flagEmoji}>🇮🇳</Text>
             <Text style={styles.codeText}>+91</Text>
           </View>
           <TextInput
@@ -204,9 +201,8 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#4CAF50',
   },
-  flag: {
-    width: 24,
-    height: 16,
+  flagEmoji: {
+    fontSize: 24,
     marginRight: 8,
   },
   codeText: {

@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
+    Image,
+    ImageBackground,
     Linking,
+    Modal,
     ScrollView,
     Share,
     StatusBar,
@@ -10,26 +14,92 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
+import VisitingCardGenerator from '../components/VisitingCardGenerator';
 
 const { width } = Dimensions.get('window');
 
 export default function LocalCardDetailScreen({ navigation, route }) {
-  const { card } = route.params;
+  const { cardId } = route.params;
   const [activeTab, setActiveTab] = useState('details');
-  
-  // Extended card data for detail view
-  const cardDetails = {
-    ...card,
-    description: '20 વર્ષનો અનુભવ ધરાવતા નિષ્ણાત સુથાર - ફર્નિચર, રસોડાની સજાવટ, બધા પ્રકારનું લાકડાનું કામ',
-    contactPerson: 'લાલજીભાઈ પટેલ',
-    alternatePhone: '9825123456',
-    whatsapp: '9876543210',
-    email: 'laljibhai@example.com',
-    address: 'Near Bus Stand, Main Road\nઉંઝા, ધોળકા, અમદાવાદ',
-    workingDays: 'સોમવાર થી શનિવાર',
-    services: ['ફર્નિચર', 'કિચન કેબિનેટ', 'દરવાજા-બારી', 'મંદિર', 'ઓફિસ ફર્નિચર'],
-    photos: ['photo1', 'photo2', 'photo3', 'photo4', 'photo5'],
+  const [cardDetails, setCardDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [allImages, setAllImages] = useState([]);
+  const [isOwnCard, setIsOwnCard] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Fetch card details on mount
+  useEffect(() => {
+    loadCardAndCheckOwnership();
+  }, [cardId]);
+
+  const loadCardAndCheckOwnership = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // First, get the current user profile
+      console.log('👤 Fetching current user profile...');
+      const userProfile = await apiService.getUserProfile();
+      let userId = null;
+
+      if (userProfile.success && userProfile.data) {
+        userId = userProfile.data.userId;
+        setCurrentUserId(userId);
+        console.log('✅ Current userId:', userId);
+      }
+
+      // Then fetch card details
+      console.log('🔍 Fetching card details for cardId:', cardId);
+      const response = await apiService.getLocalCardById(cardId);
+
+      console.log('📡 Card details response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data) {
+        console.log('✅ Card details loaded successfully');
+        console.log('🆔 Card userId:', response.data.userId);
+        console.log('🆔 Current userId:', userId);
+        console.log('📸 Profile Image:', response.data.profileImage);
+        console.log('📸 Cover Image:', response.data.coverImage);
+        console.log('📸 Images array:', response.data.images);
+        console.log('📸 Images array type:', typeof response.data.images);
+        console.log('📸 Images array length:', response.data.images?.length || 0);
+
+        if (response.data.images && Array.isArray(response.data.images)) {
+          console.log('📸 Individual images:');
+          response.data.images.forEach((img, idx) => {
+            console.log(`  Image ${idx}:`, img);
+            console.log(`  Image ${idx} type:`, typeof img);
+          });
+        }
+
+        setCardDetails(response.data);
+
+        // Check if this is the user's own card
+        if (userId && response.data.userId === userId) {
+          console.log('✅ This is the user\'s own card!');
+          setIsOwnCard(true);
+        } else {
+          console.log('ℹ️ This is NOT the user\'s own card');
+          console.log('ℹ️ userId:', userId, 'card.userId:', response.data.userId);
+          setIsOwnCard(false);
+        }
+      } else {
+        setError('કાર્ડની માહિતી લોડ કરવામાં નિષ્ફળ');
+      }
+    } catch (err) {
+      console.error('❌ Error fetching card details:', err);
+      setError('કાર્ડની માહિતી લોડ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   const handleCall = (phone) => {
     Linking.openURL(`tel:${phone}`);
@@ -41,9 +111,12 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   };
 
   const handleShare = async () => {
+    if (!cardDetails) return;
     try {
+      const businessName = cardDetails.businessNameGujarati || cardDetails.businessName;
+      const category = cardDetails.subCategoryNameGujarati || cardDetails.categoryNameGujarati;
       await Share.share({
-        message: `${cardDetails.name}\n${cardDetails.category}\n📞 ${cardDetails.phone}\n📍 ${cardDetails.address}\n\nસ્થાનિક કાર્ડ એપ્લિકેશનમાંથી`,
+        message: `${businessName}\n${category}\n📞 ${cardDetails.primaryPhone}\n📍 ${cardDetails.fullAddress}\n\nસ્થાનિક કાર્ડ એપ્લિકેશનમાંથી`,
       });
     } catch (error) {
       console.log('Share error:', error);
@@ -51,165 +124,479 @@ export default function LocalCardDetailScreen({ navigation, route }) {
   };
 
   const openMap = () => {
-    const address = encodeURIComponent(cardDetails.address);
-    const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-    Linking.openURL(url);
+    if (!cardDetails) return;
+    if (cardDetails.latitude && cardDetails.longitude) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${cardDetails.latitude},${cardDetails.longitude}`;
+      Linking.openURL(url);
+    } else {
+      const address = encodeURIComponent(cardDetails.fullAddress);
+      const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
+      Linking.openURL(url);
+    }
   };
 
-  const renderDetailsTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>📋 બિઝનેસ માહિતી</Text>
-        <View style={styles.detailDivider} />
-        <Text style={styles.businessName}>{cardDetails.name}</Text>
-        <Text style={styles.description}>{cardDetails.description}</Text>
-      </View>
 
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>👤 સંપર્ક વ્યક્તિ</Text>
-        <View style={styles.detailDivider} />
-        <Text style={styles.detailText}>{cardDetails.contactPerson}</Text>
-      </View>
+  const renderDetailsTab = () => {
+    if (!cardDetails) return null;
 
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>📞 ફોન નંબર</Text>
-        <View style={styles.detailDivider} />
-        <TouchableOpacity onPress={() => handleCall(cardDetails.phone)}>
-          <Text style={styles.phoneLink}>{cardDetails.phone}</Text>
-        </TouchableOpacity>
-        {cardDetails.alternatePhone && (
-          <TouchableOpacity onPress={() => handleCall(cardDetails.alternatePhone)}>
-            <Text style={styles.phoneLink}>{cardDetails.alternatePhone} (Secondary)</Text>
-          </TouchableOpacity>
+    const businessName = cardDetails.businessNameGujarati || cardDetails.businessName;
+    const description = cardDetails.businessDescriptionGujarati || cardDetails.businessDescription;
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.detailSection}>
+          <Text style={styles.detailTitle}>📋 બિઝનેસ માહિતી</Text>
+          <View style={styles.detailDivider} />
+          <Text style={styles.businessName}>{businessName}</Text>
+          {description && <Text style={styles.description}>{description}</Text>}
+          <Text style={styles.detailText}>
+            કેટેગરી: {cardDetails.categoryNameGujarati || cardDetails.categoryNameEnglish}
+          </Text>
+          <Text style={styles.detailText}>
+            સબ-કેટેગરી: {cardDetails.subCategoryNameGujarati || cardDetails.subCategoryNameEnglish}
+          </Text>
+        </View>
+
+        {cardDetails.contactPersonName && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailTitle}>👤 સંપર્ક વ્યક્તિ</Text>
+            <View style={styles.detailDivider} />
+            <Text style={styles.detailText}>{cardDetails.contactPersonName}</Text>
+          </View>
+        )}
+
+        <View style={styles.detailSection}>
+          <Text style={styles.detailTitle}>📞 ફોન નંબર</Text>
+          <View style={styles.detailDivider} />
+          {cardDetails.primaryPhone && (
+            <TouchableOpacity onPress={() => handleCall(cardDetails.primaryPhone)}>
+              <Text style={styles.phoneLink}>📱 {cardDetails.primaryPhone} (Primary)</Text>
+            </TouchableOpacity>
+          )}
+          {cardDetails.secondaryPhone && (
+            <TouchableOpacity onPress={() => handleCall(cardDetails.secondaryPhone)}>
+              <Text style={styles.phoneLink}>📱 {cardDetails.secondaryPhone} (Secondary)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {cardDetails.whatsAppNumber && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailTitle}>💬 WhatsApp</Text>
+            <View style={styles.detailDivider} />
+            <TouchableOpacity onPress={() => handleWhatsApp(cardDetails.whatsAppNumber)}>
+              <Text style={styles.phoneLink}>{cardDetails.whatsAppNumber}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {cardDetails.email && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailTitle}>📧 Email</Text>
+            <View style={styles.detailDivider} />
+            <Text style={styles.detailText}>{cardDetails.email}</Text>
+          </View>
+        )}
+
+        <View style={styles.detailSection}>
+          <Text style={styles.detailTitle}>📍 સરનામું</Text>
+          <View style={styles.detailDivider} />
+          <Text style={styles.detailText}>{cardDetails.fullAddress}</Text>
+          <Text style={styles.detailText}>
+            {cardDetails.villageNameGujarati || cardDetails.villageNameEnglish},{' '}
+            {cardDetails.talukaNameGujarati || cardDetails.talukaNameEnglish}
+          </Text>
+          <Text style={styles.detailText}>
+            {cardDetails.districtNameGujarati || cardDetails.districtNameEnglish}
+          </Text>
+        </View>
+
+        {(cardDetails.workingHours || cardDetails.workingDays) && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailTitle}>⏰ કામના સમય</Text>
+            <View style={styles.detailDivider} />
+            {cardDetails.workingHours && (
+              <Text style={styles.detailText}>🕐 {cardDetails.workingHours}</Text>
+            )}
+            {cardDetails.workingDays && (
+              <Text style={styles.detailText}>📅 {cardDetails.workingDays}</Text>
+            )}
+            {cardDetails.isOpen24Hours && (
+              <Text style={[styles.detailText, { color: '#4CAF50', fontWeight: 'bold' }]}>
+                ⏰ 24 કલાક ખુલ્લું
+              </Text>
+            )}
+          </View>
+        )}
+
+        {cardDetails.isVerified && (
+          <View style={styles.verificationBanner}>
+            <Text style={styles.verificationText}>✓ આ કાર્ડ વેરિફાઈડ છે</Text>
+          </View>
         )}
       </View>
+    );
+  };
 
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>💬 WhatsApp</Text>
-        <View style={styles.detailDivider} />
-        <TouchableOpacity onPress={() => handleWhatsApp(cardDetails.whatsapp)}>
-          <Text style={styles.phoneLink}>{cardDetails.whatsapp}</Text>
+  const renderPhotosTab = () => {
+    if (!cardDetails) return null;
+
+    console.log('=================================');
+    console.log('📸 RENDERING PHOTOS TAB');
+    console.log('=================================');
+
+    const images = cardDetails.images || [];
+    const photosList = [];
+
+    console.log('📸 Raw images from cardDetails:', images);
+    console.log('📸 Raw images type:', typeof images);
+    console.log('📸 Raw images length:', images.length);
+
+    // Add cover image if available
+    if (cardDetails.coverImage) {
+      const coverUri = `${API_CONFIG.BASE_URL_Image}${cardDetails.coverImage}`;
+      console.log('📸 Adding cover image:', coverUri);
+      photosList.push({ uri: coverUri, type: 'cover', label: 'કવર ફોટો' });
+    }
+
+    // Add profile image if available
+    if (cardDetails.profileImage) {
+      const profileUri = `${API_CONFIG.BASE_URL_Image}${cardDetails.profileImage}`;
+      console.log('📸 Adding profile image:', profileUri);
+      photosList.push({ uri: profileUri, type: 'profile', label: 'પ્રોફાઇલ ફોટો' });
+    }
+
+    // Add additional images
+    // The images array could be:
+    // 1. Array of strings: ["/uploads/...", "/uploads/..."]
+    // 2. Array of objects: [{imageUrl: "/uploads/...", imageId: 1}, ...]
+    images.forEach((img, idx) => {
+      let imageUrl = '';
+
+      if (typeof img === 'string') {
+        // It's a string URL
+        imageUrl = img;
+      } else if (img && typeof img === 'object') {
+        // It's an object, check for imageUrl property
+        imageUrl = img.imageUrl || img.url || '';
+      }
+
+      if (imageUrl) {
+        const fullUri = `${API_CONFIG.BASE_URL_Image}${imageUrl}`;
+        console.log(`📸 Adding additional image ${idx}:`, fullUri);
+        photosList.push({ uri: fullUri, type: 'gallery', index: idx, label: `ગેલેરી ${idx + 1}` });
+      } else {
+        console.warn(`⚠️ Could not extract image URL from index ${idx}:`, img);
+      }
+    });
+
+    console.log('📸 Total images to display:', photosList.length);
+    console.log('📸 All images:', photosList);
+    console.log('=================================');
+
+    const handleImagePress = (index) => {
+      console.log('📸 Image clicked at index:', index);
+      setAllImages(photosList);
+      setSelectedImageIndex(index);
+      setImageViewerVisible(true);
+    };
+
+    return (
+      <View style={styles.tabContent}>
+        {photosList.length > 0 ? (
+          <View style={styles.photosGrid}>
+            {photosList.map((photo, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.photoItem}
+                onPress={() => handleImagePress(index)}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: photo.uri }}
+                  style={styles.photoImage}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.error(`❌ Failed to load image ${index}:`, photo.uri, error.nativeEvent.error);
+                  }}
+                  onLoad={() => {
+                    console.log(`✅ Successfully loaded image ${index}:`, photo.uri);
+                  }}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.noPhotosContainer}>
+            <Text style={styles.photoIcon}>📷</Text>
+            <Text style={styles.noPhotosText}>કોઈ ફોટા ઉપલબ્ધ નથી</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderLocationTab = () => {
+    if (!cardDetails) return null;
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.mapContainer}>
+          <View style={styles.mapPlaceholder}>
+            <Text style={styles.mapIcon}>🗺️</Text>
+            <Text style={styles.mapText}>Map View</Text>
+            {cardDetails.latitude && cardDetails.longitude && (
+              <Text style={styles.coordinatesText}>
+                {cardDetails.latitude.toFixed(4)}, {cardDetails.longitude.toFixed(4)}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.locationInfo}>
+          <Text style={styles.locationIcon}>📍</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.locationText}>{cardDetails.fullAddress}</Text>
+            <Text style={styles.locationText}>
+              {cardDetails.villageNameGujarati || cardDetails.villageNameEnglish},{' '}
+              {cardDetails.talukaNameGujarati || cardDetails.talukaNameEnglish}
+            </Text>
+            <Text style={styles.locationText}>
+              {cardDetails.districtNameGujarati || cardDetails.districtNameEnglish}
+            </Text>
+            {cardDetails.distanceKm && (
+              <Text style={styles.distanceText}>📏 {cardDetails.distanceKm.toFixed(1)} km દૂર</Text>
+            )}
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.mapButton} onPress={openMap}>
+          <Text style={styles.mapButtonText}>🗺️ Google Maps માં જુઓ</Text>
         </TouchableOpacity>
       </View>
+    );
+  };
 
-      {cardDetails.email && (
-        <View style={styles.detailSection}>
-          <Text style={styles.detailTitle}>📧 Email</Text>
-          <View style={styles.detailDivider} />
-          <Text style={styles.detailText}>{cardDetails.email}</Text>
+  // Show loading state
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+        <View style={styles.headerContainer}>
+          <View style={styles.coverImage}>
+            <View style={styles.coverOverlay} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
-
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>📍 સરનામું</Text>
-        <View style={styles.detailDivider} />
-        <Text style={styles.detailText}>{cardDetails.address}</Text>
-      </View>
-
-      <View style={styles.detailSection}>
-        <Text style={styles.detailTitle}>⏰ કામના સમય</Text>
-        <View style={styles.detailDivider} />
-        <Text style={styles.detailText}>{cardDetails.timing}</Text>
-        <Text style={styles.detailText}>{cardDetails.workingDays}</Text>
-      </View>
-
-      {cardDetails.services && (
-        <View style={styles.detailSection}>
-          <Text style={styles.detailTitle}>🛠️ સેવાઓ</Text>
-          <View style={styles.detailDivider} />
-          {cardDetails.services.map((service, index) => (
-            <View key={index} style={styles.serviceItem}>
-              <Text style={styles.serviceBullet}>•</Text>
-              <Text style={styles.serviceText}>{service}</Text>
-            </View>
-          ))}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>કાર્ડની માહિતી લોડ થઈ રહી છે...</Text>
         </View>
-      )}
-    </View>
-  );
+      </View>
+    );
+  }
 
-  const renderPhotosTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.photosGrid}>
-        {cardDetails.photos.map((photo, index) => (
-          <TouchableOpacity key={index} style={styles.photoItem}>
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoIcon}>📷</Text>
-              <Text style={styles.photoText}>Photo {index + 1}</Text>
-            </View>
+  // Show error state
+  if (error || !cardDetails) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+        <View style={styles.headerContainer}>
+          <View style={styles.coverImage}>
+            <View style={styles.coverOverlay} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'કાર્ડની માહિતી મળી નથી'}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchCardDetails}>
+            <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
           </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
-  const renderLocationTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Text style={styles.mapIcon}>🗺️</Text>
-          <Text style={styles.mapText}>Map View</Text>
         </View>
       </View>
-      
-      <View style={styles.locationInfo}>
-        <Text style={styles.locationIcon}>📍</Text>
-        <Text style={styles.locationText}>{cardDetails.address}</Text>
+    );
+  }
+
+  const businessName = cardDetails.businessNameGujarati || cardDetails.businessName;
+  const category = cardDetails.subCategoryNameGujarati || cardDetails.categoryNameGujarati;
+  const profileImageUrl = cardDetails.profileImage ? `${API_CONFIG.BASE_URL_Image}${cardDetails.profileImage}` : null;
+  const coverImageUrl = cardDetails.coverImage ? `${API_CONFIG.BASE_URL_Image}${cardDetails.coverImage}` : null;
+
+  // Image Viewer Modal
+  const renderImageViewer = () => (
+    <Modal
+      visible={imageViewerVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setImageViewerVisible(false)}
+    >
+      <View style={styles.imageViewerContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
+        {/* Close Button */}
+        <TouchableOpacity
+          style={styles.imageViewerCloseButton}
+          onPress={() => setImageViewerVisible(false)}
+        >
+          <Text style={styles.imageViewerCloseText}>✕</Text>
+        </TouchableOpacity>
+
+        {/* Image Counter */}
+        <View style={styles.imageViewerCounter}>
+          <Text style={styles.imageViewerCounterText}>
+            {selectedImageIndex + 1} / {allImages.length}
+          </Text>
+          {allImages[selectedImageIndex] && (
+            <Text style={styles.imageViewerLabel}>
+              {allImages[selectedImageIndex].label}
+            </Text>
+          )}
+        </View>
+
+        {/* Main Image */}
+        <ScrollView
+          contentContainerStyle={styles.imageViewerScrollContent}
+          maximumZoomScale={3}
+          minimumZoomScale={1}
+        >
+          {allImages[selectedImageIndex] && (
+            <Image
+              source={{ uri: allImages[selectedImageIndex].uri }}
+              style={styles.imageViewerImage}
+              resizeMode="contain"
+            />
+          )}
+        </ScrollView>
+
+        {/* Navigation Arrows */}
+        {allImages.length > 1 && (
+          <>
+            {selectedImageIndex > 0 && (
+              <TouchableOpacity
+                style={[styles.imageViewerArrow, styles.imageViewerArrowLeft]}
+                onPress={() => setSelectedImageIndex(selectedImageIndex - 1)}
+              >
+                <Text style={styles.imageViewerArrowText}>‹</Text>
+              </TouchableOpacity>
+            )}
+            {selectedImageIndex < allImages.length - 1 && (
+              <TouchableOpacity
+                style={[styles.imageViewerArrow, styles.imageViewerArrowRight]}
+                onPress={() => setSelectedImageIndex(selectedImageIndex + 1)}
+              >
+                <Text style={styles.imageViewerArrowText}>›</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {/* Thumbnail Strip */}
+        {allImages.length > 1 && (
+          <View style={styles.imageViewerThumbnails}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {allImages.map((photo, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => setSelectedImageIndex(index)}
+                  style={[
+                    styles.imageViewerThumbnail,
+                    selectedImageIndex === index && styles.imageViewerThumbnailActive
+                  ]}
+                >
+                  <Image
+                    source={{ uri: photo.uri }}
+                    style={styles.imageViewerThumbnailImage}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
-      
-      <TouchableOpacity style={styles.mapButton} onPress={openMap}>
-        <Text style={styles.mapButtonText}>🗺️ Google Maps માં જુઓ</Text>
-      </TouchableOpacity>
-    </View>
+    </Modal>
   );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-      
+
+      {/* Image Viewer Modal */}
+      {renderImageViewer()}
+
       {/* Header with Cover Image */}
       <View style={styles.headerContainer}>
-        <View style={styles.coverImage}>
-          <View style={styles.coverOverlay} />
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.profileSection}>
-          <View style={styles.profileImage}>
-            <Text style={styles.profileIcon}>{cardDetails.image || '👤'}</Text>
+        {coverImageUrl ? (
+          <ImageBackground source={{ uri: coverImageUrl }} style={styles.coverImage} resizeMode="cover">
+            <View style={styles.coverOverlay} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+            </TouchableOpacity>
+          </ImageBackground>
+        ) : (
+          <View style={styles.coverImage}>
+            <View style={styles.coverOverlay} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+            </TouchableOpacity>
           </View>
+        )}
+
+        <View style={styles.profileSection}>
+          {profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              style={styles.profileImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.profileImage}>
+              <Text style={styles.profileIcon}>🏪</Text>
+            </View>
+          )}
           <View style={styles.profileInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.profileName}>{cardDetails.name}</Text>
-              {cardDetails.verified && <Text style={styles.verifiedBadge}>✓</Text>}
+              <Text style={styles.profileName}>{businessName}</Text>
+              {cardDetails.isVerified && <Text style={styles.verifiedBadge}>✓</Text>}
             </View>
-            <Text style={styles.profileCategory}>{cardDetails.category}</Text>
+            <Text style={styles.profileCategory}>{category}</Text>
           </View>
         </View>
       </View>
 
       {/* Contact Actions */}
       <View style={styles.contactActions}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => handleCall(cardDetails.phone)}
+          onPress={() => handleCall(cardDetails.primaryPhone || cardDetails.whatsAppNumber)}
         >
           <Text style={styles.actionIcon}>📞</Text>
           <Text style={styles.actionText}>કોલ કરો</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => handleWhatsApp(cardDetails.whatsapp)}
+          onPress={() => handleWhatsApp(cardDetails.whatsAppNumber || cardDetails.primaryPhone)}
         >
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>WhatsApp</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={handleShare}
         >
@@ -220,7 +607,7 @@ export default function LocalCardDetailScreen({ navigation, route }) {
 
       {/* Tabs */}
       <View style={styles.tabs}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'details' && styles.tabActive]}
           onPress={() => setActiveTab('details')}
         >
@@ -228,7 +615,7 @@ export default function LocalCardDetailScreen({ navigation, route }) {
             વિગતો
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'photos' && styles.tabActive]}
           onPress={() => setActiveTab('photos')}
         >
@@ -236,7 +623,7 @@ export default function LocalCardDetailScreen({ navigation, route }) {
             ફોટા
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'location' && styles.tabActive]}
           onPress={() => setActiveTab('location')}
         >
@@ -244,6 +631,16 @@ export default function LocalCardDetailScreen({ navigation, route }) {
             સ્થળ
           </Text>
         </TouchableOpacity>
+        {isOwnCard && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'card' && styles.tabActive]}
+            onPress={() => setActiveTab('card')}
+          >
+            <Text style={[styles.tabText, activeTab === 'card' && styles.tabTextActive]}>
+              કાર્ડ
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tab Content */}
@@ -251,6 +648,11 @@ export default function LocalCardDetailScreen({ navigation, route }) {
         {activeTab === 'details' && renderDetailsTab()}
         {activeTab === 'photos' && renderPhotosTab()}
         {activeTab === 'location' && renderLocationTab()}
+        {activeTab === 'card' && isOwnCard && (
+          <View style={styles.tabContent}>
+            <VisitingCardGenerator cardDetails={cardDetails} />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -402,7 +804,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   tabContent: {
-    padding: 20,
+    padding: 15,
   },
   detailSection: {
     marginBottom: 20,
@@ -457,12 +859,21 @@ const styles = StyleSheet.create({
   photosGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -5,
+    justifyContent: 'space-between',
+    marginTop: 5,
   },
   photoItem: {
-    width: (width - 50) / 3,
-    height: (width - 50) / 3,
-    margin: 5,
+    width: (width - 45) / 3, // 15px padding on each side (30) + 15px gap (15) = 45
+    height: (width - 45) / 3,
+    marginBottom: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F0F0F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   photoPlaceholder: {
     width: '100%',
@@ -529,5 +940,197 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#E65100',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  verificationBanner: {
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+    marginTop: 10,
+  },
+  verificationText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  noPhotosContainer: {
+    padding: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noPhotosText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 10,
+  },
+  coordinatesText: {
+    fontSize: 10,
+    color: '#999',
+    marginTop: 5,
+  },
+  distanceText: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  photoLabelContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  photoLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  // Image Viewer Styles
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  imageViewerCloseButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseText: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  imageViewerCounter: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+  },
+  imageViewerCounterText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  imageViewerLabel: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginTop: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  imageViewerScrollContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerImage: {
+    width: width,
+    height: width,
+  },
+  imageViewerArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  imageViewerArrowLeft: {
+    left: 20,
+  },
+  imageViewerArrowRight: {
+    right: 20,
+  },
+  imageViewerArrowText: {
+    fontSize: 40,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  imageViewerThumbnails: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    height: 80,
+    paddingHorizontal: 10,
+  },
+  imageViewerThumbnail: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+  },
+  imageViewerThumbnailActive: {
+    borderColor: '#4CAF50',
+  },
+  imageViewerThumbnailImage: {
+    width: '100%',
+    height: '100%',
   },
 });

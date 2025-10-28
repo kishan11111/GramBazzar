@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Linking,
     Platform,
@@ -11,10 +13,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
 
 export default function LocalCardSearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState([
     'મિસ્ત્રી',
     'ટ્રેક્ટર ભાડે',
@@ -28,78 +33,37 @@ export default function LocalCardSearchScreen({ navigation }) {
     'પ્લમ્બર',
   ]);
 
-  // Sample data for search results
-  const allCards = [
-    {
-      id: 1,
-      name: 'લાલજીભાઈ મિસ્ત્રી',
-      category: 'મિસ્ત્રી કામ',
-      location: 'ઉંઝા, ધોળકા',
-      distance: '1.2 km',
-      phone: '9876543210',
-      timing: 'સવારે 9 થી સાંજે 7',
-      verified: true,
-      image: '👷',
-    },
-    {
-      id: 2,
-      name: 'રમેશ ટ્રેક્ટર સેવા',
-      category: 'ટ્રેક્ટર ભાડે',
-      location: 'ખેડા, ધોળકા',
-      distance: '3.5 km',
-      phone: '9898765432',
-      timing: '24 કલાક ઉપલબ્ધ',
-      verified: false,
-      image: '🚜',
-    },
-    {
-      id: 3,
-      name: 'જયેશ ડીજે સાઉન્ડ',
-      category: 'ડીજે સેવા',
-      location: 'ધોળકા',
-      distance: '2.1 km',
-      phone: '9825678901',
-      timing: 'સવારે 10 થી રાત્રે 11',
-      verified: true,
-      image: '🎵',
-    },
-    {
-      id: 4,
-      name: 'પિયુષ ઇલેક્ટ્રિક',
-      category: 'ઇલેક્ટ્રીશિયન',
-      location: 'બાવળા',
-      distance: '8.3 km',
-      phone: '9724567890',
-      timing: 'સવારે 9 થી સાંજે 8',
-      verified: true,
-      image: '⚡',
-    },
-    {
-      id: 5,
-      name: 'ભરત કેટરિંગ સર્વિસ',
-      category: 'કેટરિંગ',
-      location: 'સાણંદ',
-      distance: '12.5 km',
-      phone: '9913456789',
-      timing: '24 કલાક બુકિંગ',
-      verified: false,
-      image: '🍛',
-    },
-  ];
-
+  // Search with debounce
   useEffect(() => {
-    if (searchQuery.length > 0) {
-      // Filter cards based on search query
-      const filtered = allCards.filter(card =>
-        card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        card.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        card.location.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    } else {
-      setSearchResults([]);
-    }
+    const delaySearch = setTimeout(() => {
+      if (searchQuery.length > 2) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(delaySearch);
   }, [searchQuery]);
+
+  // Perform API search
+  const performSearch = async (query) => {
+    try {
+      setSearching(true);
+      const response = await apiService.searchLocalCards(query);
+
+      if (response.success && response.data && response.data.data) {
+        setSearchResults(response.data.data);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -126,46 +90,68 @@ export default function LocalCardSearchScreen({ navigation }) {
     Linking.openURL(`https://wa.me/91${phone}`);
   };
 
-  const renderSearchResult = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.resultCard}
-      onPress={() => navigation.navigate('LocalCardDetail', { card: item })}
-      activeOpacity={0.9}
-    >
-      <View style={styles.cardContent}>
-        <View style={styles.cardLeft}>
-          <View style={styles.cardImage}>
-            <Text style={styles.cardImageIcon}>{item.image}</Text>
+  const renderSearchResult = ({ item }) => {
+    const profileImageUrl = item.profileImage
+      ? `${API_CONFIG.BASE_URL_Image}${item.profileImage}`
+      : null;
+    const businessName = item.businessNameGujarati || item.businessName;
+    const category = item.subCategoryNameGujarati || item.categoryNameGujarati;
+    const location = `${item.villageNameGujarati || item.villageNameEnglish}, ${item.talukaNameGujarati || item.talukaNameEnglish}`;
+    const distance = item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : '';
+
+    return (
+      <TouchableOpacity
+        style={styles.resultCard}
+        onPress={() => navigation.navigate('LocalCardDetail', { cardId: item.cardId })}
+        activeOpacity={0.9}
+      >
+        <View style={styles.cardContent}>
+          <View style={styles.cardLeft}>
+            {profileImageUrl ? (
+              <Image
+                source={{ uri: profileImageUrl }}
+                style={styles.cardImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.cardImagePlaceholder}>
+                <Text style={styles.cardImageIcon}>🏪</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.cardMiddle}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardName} numberOfLines={2}>{businessName}</Text>
+              {item.isVerified && <Text style={styles.verifiedBadge}>✓</Text>}
+            </View>
+            <Text style={styles.cardCategory} numberOfLines={1}>{category}</Text>
+            <Text style={styles.cardLocation} numberOfLines={1}>
+              📍 {location} {distance && `(${distance})`}
+            </Text>
+            {item.workingHours && (
+              <Text style={styles.cardTiming} numberOfLines={1}>⏰ {item.workingHours}</Text>
+            )}
           </View>
         </View>
-        
-        <View style={styles.cardMiddle}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            {item.verified && <Text style={styles.verifiedBadge}>✓</Text>}
-          </View>
-          <Text style={styles.cardCategory}>{item.category}</Text>
-          <Text style={styles.cardLocation}>📍 {item.location} ({item.distance})</Text>
-          <Text style={styles.cardTiming}>⏰ {item.timing}</Text>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={() => handleCall(item.primaryPhone)}
+          >
+            <Text style={styles.callButtonText}>📞 કોલ</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.whatsappButton}
+            onPress={() => handleWhatsApp(item.whatsAppNumber || item.primaryPhone)}
+          >
+            <Text style={styles.whatsappButtonText}>💬 WhatsApp</Text>
+          </TouchableOpacity>
         </View>
-      </View>
-      
-      <View style={styles.cardActions}>
-        <TouchableOpacity 
-          style={styles.callButton}
-          onPress={() => handleCall(item.phone)}
-        >
-          <Text style={styles.callButtonText}>📞 કોલ</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.whatsappButton}
-          onPress={() => handleWhatsApp(item.phone)}
-        >
-          <Text style={styles.whatsappButtonText}>💬 WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <KeyboardAvoidingView 
@@ -239,23 +225,30 @@ export default function LocalCardSearchScreen({ navigation }) {
             ))}
           </View>
         </View>
+      ) : searching ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>શોધી રહ્યા છીએ...</Text>
+        </View>
       ) : (
         <FlatList
           data={searchResults}
           renderItem={renderSearchResult}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item.cardId.toString()}
           contentContainerStyle={styles.resultsContainer}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.noResults}>
-              <Text style={styles.noResultsIcon}>🔍</Text>
-              <Text style={styles.noResultsText}>
-                "{searchQuery}" માટે કોઈ પરિણામ મળ્યું નથી
-              </Text>
-              <Text style={styles.noResultsSubtext}>
-                અલગ શબ્દો સાથે પ્રયાસ કરો
-              </Text>
-            </View>
+            searchQuery.length > 0 ? (
+              <View style={styles.noResults}>
+                <Text style={styles.noResultsIcon}>🔍</Text>
+                <Text style={styles.noResultsText}>
+                  "{searchQuery}" માટે કોઈ પરિણામ મળ્યું નથી
+                </Text>
+                <Text style={styles.noResultsSubtext}>
+                  અલગ શબ્દો સાથે પ્રયાસ કરો
+                </Text>
+              </View>
+            ) : null
           }
         />
       )}
@@ -376,6 +369,11 @@ const styles = StyleSheet.create({
   cardImage: {
     width: 50,
     height: 50,
+    borderRadius: 8,
+  },
+  cardImagePlaceholder: {
+    width: 50,
+    height: 50,
     backgroundColor: '#F1F8E9',
     borderRadius: 8,
     justifyContent: 'center',
@@ -470,5 +468,16 @@ const styles = StyleSheet.create({
   noResultsSubtext: {
     fontSize: 14,
     color: '#999',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: '#666',
   },
 });

@@ -3,18 +3,20 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   RefreshControl,
-  ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { apiService } from '../config/api';
-import API_CONFIG from '../config/api';
+import API_CONFIG, { apiService } from '../config/api';
+//import API_CONFIG from '../config/api';
 import BottomNavWrapper from '../DynamicBottomNav';
+import { AccountPageShimmer } from '../components/Shimmer';
 
 export default function AccountScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('posts');
@@ -22,6 +24,9 @@ export default function AccountScreen({ navigation }) {
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -30,17 +35,20 @@ export default function AccountScreen({ navigation }) {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      
+
       // Load profile
       const profileResponse = await apiService.getUserProfile();
       if (profileResponse.success) {
         setUserData(profileResponse.data);
       }
 
-      // Load user posts
+      // Load user posts - first page
       const postsResponse = await apiService.getMyPosts(1, 10);
       if (postsResponse.success) {
         setUserPosts(postsResponse.data.items);
+        setCurrentPage(1);
+        // Check if there are more posts
+        setHasMore(postsResponse.data.items.length === 10);
       }
     } catch (error) {
       if (error.message.includes('લૉગિન')) {
@@ -59,8 +67,50 @@ export default function AccountScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+
     }
   };
+
+  const loadMorePosts = async () => {
+    if (loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      const nextPage = currentPage + 1;
+      console.log(`Loading page ${nextPage}...`);
+
+      const postsResponse = await apiService.getMyPosts(nextPage, 10);
+
+      if (postsResponse.success && postsResponse.data.items.length > 0) {
+        setUserPosts(prevPosts => [...prevPosts, ...postsResponse.data.items]);
+        setCurrentPage(nextPage);
+        // If we got less than 10 items, there are no more posts
+        setHasMore(postsResponse.data.items.length === 10);
+        console.log(`Loaded ${postsResponse.data.items.length} more posts`);
+      } else {
+        setHasMore(false);
+        console.log('No more posts to load');
+      }
+    } catch (error) {
+      console.error('Error loading more posts:', error);
+      Alert.alert('ભૂલ', 'વધુ પોસ્ટ લોડ કરવામાં સમસ્યા');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+const handleShare = async (post) => {
+  try {
+    const shareMessage = `જુઓ આ જાહેરાત 👇\n\n${post.title}\nકિંમત: ${post.priceString}\n\nજુઓ વધુ વિગત અહીં:\n${API_CONFIG.BASE_URL_Image}${post.mainImageUrl}`;
+    
+    await Share.share({
+      message: shareMessage,
+    });
+  } catch (error) {
+    Alert.alert('ભૂલ', 'શેર કરવામાં મુશ્કેલી આવી');
+    console.error(error);
+  }
+};
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -80,6 +130,73 @@ export default function AccountScreen({ navigation }) {
             navigation.navigate('Welcome');
           },
           style: 'destructive'
+          }
+      ]
+    );
+  };
+
+  const handleDeletePost = (postId) => {
+  Alert.alert(
+    'ડિલીટ', 
+    'શું તમે ખરેખર આ જાહેરાત ડિલીટ કરવા માંગો છો?', 
+    [
+      { text: 'રદ કરો', style: 'cancel' },
+      { 
+        text: 'ડિલીટ', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            // Call API to delete post
+            const response = await apiService.deletePost(postId); 
+            if (response.success) {
+              // Remove the post from local state
+              setUserPosts(prevPosts => prevPosts.filter(post => post.postId !== postId));
+              Alert.alert('સફળ', 'જાહેરાત સફળતાપૂર્વક ડિલીટ થઈ ગઈ છે');
+            } else {
+              Alert.alert('ભૂલ', response.message || 'જાહેરાત ડિલીટ કરવામાં સમસ્યા');
+            }
+          } catch (error) {
+            console.error(error);
+            Alert.alert('ભૂલ', 'જાહેરાત ડિલીટ કરવામાં સમસ્યા');
+          }
+        }
+      }
+    ]
+  );
+  };
+
+  const handleMarkAsSold = (post) => {
+  if (post.status === 'SOLD') {
+    Alert.alert('માહિતી', 'આ પોસ્ટ પહેલેથી જ વેચાઈ ગઈ છે.');
+    return;
+  }
+
+  Alert.alert(
+    'પોસ્ટ વેચાઈ ગઈ?',
+    'શું તમારી પોસ્ટ વેચાઈ ગઈ છે?',
+    [
+      { text: 'ના', style: 'cancel' },
+      {
+        text: 'હા',
+        onPress: async () => {
+          try {
+            const response = await apiService.updatePostStatus(post.postId, 'SOLD');
+            if (response.success) {
+              Alert.alert('સફળતા', 'પોસ્ટની સ્થિતિ "વેચાઈ ગઈ" તરીકે અપડેટ થઈ ગઈ છે.');
+              // Update the post list locally
+              setUserPosts(prevPosts =>
+                prevPosts.map(p =>
+                  p.postId === post.postId ? { ...p, status: 'SOLD' } : p
+                )
+              );
+            } else {
+              Alert.alert('ભૂલ', response.message || 'પોસ્ટ અપડેટ કરવામાં સમસ્યા');
+            }
+          } catch (error) {
+            console.error('❌ Update Post Status Error:', error);
+            Alert.alert('ભૂલ', 'પોસ્ટ અપડેટ કરવામાં સમસ્યા આવી');
+          }
+        }
         }
       ]
     );
@@ -92,6 +209,41 @@ export default function AccountScreen({ navigation }) {
 
   const handlePostClick = (post) => {
     navigation.navigate('PostDetail', { post });
+
+  };
+
+  const handleEditPost = (postId) => {
+    navigation.navigate('EditPost', { postId });
+  };
+
+  const handleMaruCard = async () => {
+    try {
+      console.log('🎴 Maru Card button clicked');
+
+      // Fetch user's local cards
+      const response = await apiService.getMyLocalCards(1, 20);
+
+      console.log('📡 My Cards Response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data && response.data.data && response.data.data.length > 0) {
+        // User has cards, navigate to the first card's detail page
+        const firstCard = response.data.data[0];
+        console.log('✅ User has cards, navigating to card:', firstCard.cardId);
+        navigation.navigate('LocalCardDetail', { cardId: firstCard.cardId });
+      } else {
+        // No cards found, navigate to create card screen
+        console.log('ℹ️ No cards found, navigating to create card screen');
+        navigation.navigate('CreateLocalCard');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching local cards:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+
+      // Show more specific error message if available
+      const errorMessage = error.message || 'કાર્ડની માહિતી લોડ કરવામાં સમસ્યા';
+      Alert.alert('ભૂલ', errorMessage);
+    }
   };
 
   // Calculate total views and favorites
@@ -100,10 +252,26 @@ export default function AccountScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>લોડ થઈ રહ્યું છે...</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>મારું એકાઉન્ટ</Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={handleLogout}
+          >
+            <Text style={styles.settingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+        <AccountPageShimmer />
+        <BottomNavWrapper navigation={navigation} activeTab="Account" />
       </View>
     );
   }
@@ -119,20 +287,226 @@ export default function AccountScreen({ navigation }) {
     );
   }
 
+  // Render post item
+  const renderPostItem = ({ item: post }) => {
+    console.log('Post:', post.postId, 'Image:', post.mainImageUrl);
+    return (
+      <TouchableOpacity
+        key={post.postId}
+        style={styles.postCard}
+        onPress={() => handlePostClick(post)}
+      >
+        {post.mainImageUrl ? (
+          <Image
+            source={{ uri: `${API_CONFIG.BASE_URL_Image}${post.mainImageUrl}` }}
+            style={styles.postImage}
+          />
+        ) : (
+          <View style={styles.noImage}>
+            <Text style={styles.noImageIcon}>📷</Text>
+          </View>
+        )}
+        <View style={styles.postDetails}>
+          <View style={styles.postHeader}>
+            <Text style={styles.postTitle} numberOfLines={1}>{post.title}</Text>
+            <TouchableOpacity
+              style={[
+               styles.statusBadge,
+               post.status === 'ACTIVE' && styles.statusActive
+          ]}
+            onPress={() => handleMarkAsSold(post)}
+          >
+            <Text style={styles.statusText}>
+            {post.status === 'ACTIVE' ? 'સક્રિય' : post.status === 'SOLD' ? 'વેચાઈ ગઈ' : post.status}
+            </Text>
+          </TouchableOpacity>
+          </View>
+          <Text style={styles.postPrice}>{post.priceString}</Text>
+
+          <View style={styles.postStats}>
+            <View style={styles.postStat}>
+              <Text style={styles.statIcon}>👁️</Text>
+              <Text style={styles.statValue}>{post.viewCount}</Text>
+            </View>
+            <View style={styles.postStat}>
+              <Text style={styles.statIcon}>❤️</Text>
+              <Text style={styles.statValue}>{post.favoriteCount}</Text>
+            </View>
+            <Text style={styles.postTime}>{post.timeAgo}</Text>
+          </View>
+
+          <View style={styles.postActions}>
+              <TouchableOpacity
+                   style={styles.actionButton}
+                  onPress={() => handleDeletePost(post.postId)}
+                  >
+                <Text style={styles.actionButtonText}>🗑️ ડિલીટ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.shareButton]}
+                onPress={() => handleShare(post)}
+                >
+              <Text style={styles.shareButtonText}>📤 શેર</Text>
+             </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+    );
+  };
+
+  // Render footer loading indicator
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#4CAF50" />
+        <Text style={styles.footerText}>વધુ લોડ થઈ રહ્યું છે...</Text>
+      </View>
+    );
+  };
+
+  // Render header component for FlatList
+  const renderListHeader = () => (
+    <>
+      {/* Profile Card */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            {userData.profileImage ? (
+              <Image source={{ uri: `${API_CONFIG.BASE_URL_Image}${userData.profileImage}` }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {userData.firstName?.charAt(0) || 'U'}
+                </Text>
+              </View>
+            )}
+            {userData.isVerified && (
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedIcon}>✓</Text>
+              </View>
+            )}
+            {userData.isPremium && (
+              <View style={styles.premiumBadgeSmall}>
+                <Text style={styles.premiumIconSmall}>⭐</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>{userData.fullName}</Text>
+            <View style={styles.locationRow}>
+              <Text style={styles.locationIcon}>📍</Text>
+              <Text style={styles.locationText}>{userData.locationString}</Text>
+            </View>
+            <View style={styles.contactRow}>
+              <Text style={styles.contactIcon}>📱</Text>
+              <Text style={styles.contactText}>{userData.mobile}</Text>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={handleEditProfile}
+        >
+          <Text style={styles.editIcon}>✏️</Text>
+          <Text style={styles.editText}>એડિટ પ્રોફાઇલ</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Stats Cards */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{userPosts.length}</Text>
+          <Text style={styles.statLabel}>જાહેરાતો</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{totalViews}</Text>
+          <Text style={styles.statLabel}>Views</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{totalFavorites}</Text>
+          <Text style={styles.statLabel}>Favorites</Text>
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.actionsSection}>
+        <Text style={styles.sectionTitle}>ઝડપી ઍક્શન</Text>
+        <View style={styles.actionsGrid}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => navigation.navigate('CreatePost')}
+          >
+            <Text style={styles.actionIcon}>➕</Text>
+            <Text style={styles.actionText}>નવી જાહેરાત</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => navigation.navigate('Favorites')}
+          >
+            <Text style={styles.actionIcon}>❤️</Text>
+            <Text style={styles.actionText}>સાચવેલું</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleMaruCard}
+          >
+            <Text style={styles.actionIcon}>🎴</Text>
+            <Text style={styles.actionText}>મારું કાર્ડ</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionCard}>
+            <Text style={styles.actionIcon}>⭐</Text>
+            <Text style={styles.actionText}>પ્રીમિયમ</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'posts' && styles.tabActive]}
+          onPress={() => setActiveTab('posts')}
+        >
+          <Text style={[styles.tabText, activeTab === 'posts' && styles.tabTextActive]}>
+            મારી જાહેરાતો ({userPosts.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
+  // Empty list component
+  const renderEmptyList = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyIcon}>📭</Text>
+      <Text style={styles.emptyTitle}>કોઈ જાહેરાત નથી</Text>
+      <Text style={styles.emptyText}>તમે હજી કોઈ જાહેરાત પોસ્ટ કરી નથી</Text>
+      <TouchableOpacity
+        style={styles.emptyButton}
+        onPress={() => navigation.navigate('CreatePost')}
+      >
+        <Text style={styles.emptyButtonText}>જાહેરાત મૂકો</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>મારું એકાઉન્ટ</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.settingsButton}
           onPress={handleLogout}
         >
@@ -140,206 +514,22 @@ export default function AccountScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        data={userPosts}
+        renderItem={renderPostItem}
+        keyExtractor={(item) => item.postId.toString()}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderEmptyList}
+        ListFooterComponent={renderFooter}
+        onEndReached={loadMorePosts}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4CAF50']} />
         }
-      >
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              {userData.profileImage ? (
-                <Image source={{ uri: `${API_CONFIG.BASE_URL_Image}${userData.profileImage}` }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {userData.firstName?.charAt(0) || 'U'}
-                  </Text>
-                </View>
-              )}
-              {userData.isVerified && (
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedIcon}>✓</Text>
-                </View>
-              )}
-              {userData.isPremium && (
-                <View style={styles.premiumBadgeSmall}>
-                  <Text style={styles.premiumIconSmall}>⭐</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.profileInfo}>
-              <Text style={styles.userName}>{userData.fullName}</Text>
-              <View style={styles.locationRow}>
-                <Text style={styles.locationIcon}>📍</Text>
-                <Text style={styles.locationText}>{userData.locationString}</Text>
-              </View>
-              <View style={styles.contactRow}>
-                <Text style={styles.contactIcon}>📱</Text>
-                <Text style={styles.contactText}>{userData.mobile}</Text>
-              </View>
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={handleEditProfile}
-          >
-            <Text style={styles.editIcon}>✏️</Text>
-            <Text style={styles.editText}>એડિટ પ્રોફાઇલ</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{userPosts.length}</Text>
-            <Text style={styles.statLabel}>જાહેરાતો</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totalViews}</Text>
-            <Text style={styles.statLabel}>Views</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totalFavorites}</Text>
-            <Text style={styles.statLabel}>Favorites</Text>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.actionsSection}>
-          <Text style={styles.sectionTitle}>ઝડપી ઍક્શન</Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => navigation.navigate('CreatePost')}
-            >
-              <Text style={styles.actionIcon}>➕</Text>
-              <Text style={styles.actionText}>નવી જાહેરાત</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
-              <Text style={styles.actionIcon}>❤️</Text>
-              <Text style={styles.actionText}>સાચવેલું</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
-              <Text style={styles.actionIcon}>💬</Text>
-              <Text style={styles.actionText}>મેસેજ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
-              <Text style={styles.actionIcon}>⭐</Text>
-              <Text style={styles.actionText}>પ્રીમિયમ</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'posts' && styles.tabActive]}
-            onPress={() => setActiveTab('posts')}
-          >
-            <Text style={[styles.tabText, activeTab === 'posts' && styles.tabTextActive]}>
-              મારી જાહેરાતો ({userPosts.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* User Posts */}
-        <View style={styles.postsSection}>
-          {userPosts.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📭</Text>
-              <Text style={styles.emptyTitle}>કોઈ જાહેરાત નથી</Text>
-              <Text style={styles.emptyText}>તમે હજી કોઈ જાહેરાત પોસ્ટ કરી નથી</Text>
-              <TouchableOpacity 
-                style={styles.emptyButton}
-                onPress={() => navigation.navigate('CreatePost')}
-              >
-                <Text style={styles.emptyButtonText}>જાહેરાત મૂકો</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            userPosts.map((post) => (
-              <TouchableOpacity 
-                key={post.postId} 
-                style={styles.postCard}
-                onPress={() => handlePostClick(post)}
-              >
-                {post.mainImageUrl ? (
-                  <Image
-                    source={{ uri: `${API_CONFIG.BASE_URL_Image}${post.mainImageUrl}` }}
-                    style={styles.postImage}
-                  />
-                ) : (
-                  <View style={styles.noImage}>
-                    <Text style={styles.noImageIcon}>📷</Text>
-                  </View>
-                )}
-                <View style={styles.postDetails}>
-                  <View style={styles.postHeader}>
-                    <Text style={styles.postTitle} numberOfLines={1}>{post.title}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      post.status === 'ACTIVE' && styles.statusActive
-                    ]}>
-                      <Text style={styles.statusText}>
-                        {post.status === 'ACTIVE' ? 'સક્રિય' : post.status}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.postPrice}>{post.priceString}</Text>
-                  
-                  <View style={styles.postStats}>
-                    <View style={styles.postStat}>
-                      <Text style={styles.statIcon}>👁️</Text>
-                      <Text style={styles.statValue}>{post.viewCount}</Text>
-                    </View>
-                    <View style={styles.postStat}>
-                      <Text style={styles.statIcon}>❤️</Text>
-                      <Text style={styles.statValue}>{post.favoriteCount}</Text>
-                    </View>
-                    <Text style={styles.postTime}>{post.timeAgo}</Text>
-                  </View>
-
-                  <View style={styles.postActions}>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <Text style={styles.actionButtonText}>✏️ એડિટ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <Text style={styles.actionButtonText}>🗑️ ડિલીટ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.shareButton]}>
-                      <Text style={styles.shareButtonText}>📤 શેર</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
-        {/* Premium Banner */}
-        {!userData.isPremium && (
-          <View style={styles.premiumBanner}>
-            <View style={styles.premiumContent}>
-              <Text style={styles.premiumIcon}>⭐</Text>
-              <View style={styles.premiumText}>
-                <Text style={styles.premiumTitle}>પ્રીમિયમ બનો</Text>
-                <Text style={styles.premiumSubtitle}>વધુ લાભો મેળવો અને વધુ વેચો</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.premiumButton}>
-              <Text style={styles.premiumButtonText}>અપગ્રેડ કરો</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={{ height: 30 }} />
-      </ScrollView>
-            <BottomNavWrapper navigation={navigation} activeTab="Account" />
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.flatListContent}
+      />
+      <BottomNavWrapper navigation={navigation} activeTab="Account" />
     </View>
   );
 }
@@ -799,5 +989,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+  },
+  flatListContent: {
+    paddingBottom: 80,
   },
 });
