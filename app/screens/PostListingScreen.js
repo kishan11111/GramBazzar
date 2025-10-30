@@ -13,7 +13,8 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { PostsGridShimmer } from '../components/Shimmer';
 import { apiService } from '../config/api';
@@ -182,6 +183,15 @@ export default function PostListingScreen({ route, navigation }) {
     await loadPosts({}, nextPage, true);
   };
 
+  const handleRefresh = async () => {
+    console.log('🔄 REFRESH TRIGGERED - Reloading page 1');
+    setRefreshing(true);
+    setCurrentPage(1);
+    setHasMore(true);
+    await loadPosts({}, 1, false);
+    setRefreshing(false);
+  };
+
   const handlePostClick = (post) => {
     navigation.navigate('PostDetail', { post });
   };
@@ -348,13 +358,6 @@ export default function PostListingScreen({ route, navigation }) {
               <Text style={styles.statText}>{post.favoriteCount}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.favoriteButton}>
-            <Text style={styles.favoriteIcon}>🤍</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{post.subCategoryName}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -407,6 +410,14 @@ export default function PostListingScreen({ route, navigation }) {
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#4CAF50']}
+              tintColor="#4CAF50"
+            />
+          }
         />
       )}
 

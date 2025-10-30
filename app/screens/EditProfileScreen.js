@@ -20,7 +20,6 @@ export default function EditProfileScreen({ navigation }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
     mobile: '',
     locationString: '',
     districtId: '',
@@ -87,7 +86,6 @@ export default function EditProfileScreen({ navigation }) {
         setFormData({
           firstName: user.firstName || '',
           lastName: user.lastName || '',
-          email: user.email || '',
           mobile: user.mobile || '',
           locationString: user.locationString || '',
           districtId: user.districtId || '',
@@ -202,7 +200,6 @@ export default function EditProfileScreen({ navigation }) {
       const profileData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        email: formData.email,
         districtId: formData.districtId,
         talukaId: formData.talukaId,
         villageId: formData.villageId,
@@ -389,18 +386,6 @@ export default function EditProfileScreen({ navigation }) {
             value={formData.lastName}
             onChangeText={(text) => setFormData({ ...formData, lastName: text })}
             placeholder="તમારું છેલ્લું નામ દાખલ કરો"
-          />
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>ઇમેલ</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.email}
-            onChangeText={(text) => setFormData({ ...formData, email: text })}
-            placeholder="તમારી ઇમેલ દાખલ કરો"
-            keyboardType="email-address"
-            autoCapitalize="none"
           />
         </View>
 

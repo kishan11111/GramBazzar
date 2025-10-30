@@ -39,7 +39,7 @@ const handleSendOTP = async () => {
 
     if (response.success) {
       // Success - Navigate to OTP screen
-      alert(response.data.message);
+      alert(`OTP સફળતાપૂર્વક મોકલવામાં આવ્યો +91-${phoneNumber}`);
       navigation.navigate('OtpVerification', {
         phone: phoneNumber,
         expiryTime: response.data.expiryTime
@@ -123,16 +123,20 @@ const handleSendOTP = async () => {
         {/* Terms and Conditions */}
         <Text style={styles.termsText}>
           આગળ વધીને, તમે સંમત છો કે{' '}
-          <Text style={styles.termsLink}>terms and conditions</Text>
-          {'\n'}and <Text style={styles.termsLink}>privacy policy</Text>.
-        </Text>
-
-        {/* Farmer Support Message */}
-        <View style={styles.supportBox}>
-          <Text style={styles.supportText}>
-            "ખેડૂતોને સશક્ત બનાવવા માટે{'\n'}સાથે મળીને આગળ વધીએ 🌱"
+          <Text
+            style={styles.termsLink}
+            onPress={() => navigation.navigate('TermsAndConditions')}
+          >
+            નિયમો અને શરતો
           </Text>
-        </View>
+          {'\n'}and{' '}
+          <Text
+            style={styles.termsLink}
+            onPress={() => navigation.navigate('TermsAndConditions')}
+          >
+            ગોપનીયતા નીતિ
+          </Text>.
+        </Text>
       </View>
     </View>
   );
@@ -264,19 +268,5 @@ const styles = StyleSheet.create({
   termsLink: {
     color: '#4CAF50',
     fontWeight: '600',
-  },
-  supportBox: {
-    backgroundColor: '#FFF9C4',
-    padding: 15,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FBC02D',
-  },
-  supportText: {
-    fontSize: 14,
-    color: '#F57F17',
-    textAlign: 'center',
-    fontWeight: '500',
-    lineHeight: 20,
   },
 });

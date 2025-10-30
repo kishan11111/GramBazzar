@@ -15,6 +15,7 @@ import {
   View
 } from 'react-native';
 import { apiService } from '../config/api';
+import API_CONFIG from '../config/api';
 import BottomNavWrapper from '../DynamicBottomNav';
 // Generate light unique colors for categories
 const generateLightColor = (index) => {
@@ -94,6 +95,7 @@ export default function CreatePostScreen({ navigation }) {
           name: cat.categoryNameGujarati,
           nameEnglish: cat.categoryNameEnglish,
           icon: cat.categoryIcon || '📦',
+          categoryImage: cat.categoryImage, // Dynamic image from API
           categoryId: cat.categoryId,
           color: generateLightColor(index),
         }));
@@ -418,7 +420,15 @@ const handleImagePick = async () => {
               activeOpacity={0.7}
             >
               <View style={[styles.categoryIconBox, { backgroundColor: item.color }]}>
-                <Text style={styles.categoryListIcon}>{item.icon}</Text>
+                {item.categoryImage ? (
+                  <Image
+                    source={{ uri: `${API_CONFIG.BASE_URL_Image}${item.categoryImage}` }}
+                    style={styles.categoryListImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.categoryListIcon}>{item.icon}</Text>
+                )}
               </View>
               <Text style={styles.categoryListName}>{item.name}</Text>
               <Text style={styles.arrowIcon}>›</Text>
@@ -462,7 +472,15 @@ const handleImagePick = async () => {
             {selectedCategory ? (
               <>
                 <View style={[styles.selectedCategoryIconBox, { backgroundColor: selectedCategory.color }]}>
-                  <Text style={styles.selectedCategoryIcon}>{selectedCategory.icon}</Text>
+                  {selectedCategory.categoryImage ? (
+                    <Image
+                      source={{ uri: `${API_CONFIG.BASE_URL_Image}${selectedCategory.categoryImage}` }}
+                      style={styles.selectedCategoryImage}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Text style={styles.selectedCategoryIcon}>{selectedCategory.icon}</Text>
+                  )}
                 </View>
                 <Text style={styles.selectedCategoryName}>{selectedCategory.name}</Text>
                 <Text style={styles.arrowIcon}>›</Text>
@@ -726,6 +744,10 @@ const styles = StyleSheet.create({
   selectedCategoryIcon: {
     fontSize: 28,
   },
+  selectedCategoryImage: {
+    width: 45,
+    height: 45,
+  },
   selectedCategoryName: {
     flex: 1,
     fontSize: 16,
@@ -783,6 +805,10 @@ const styles = StyleSheet.create({
   },
   categoryListIcon: {
     fontSize: 32,
+  },
+  categoryListImage: {
+    width: 50,
+    height: 50,
   },
   categoryListName: {
     flex: 1,

@@ -82,7 +82,13 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>લોકબજાર</Text>
           <View style={styles.headerIcons}>
-            <TouchableOpacity 
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('BlogList')}
+            >
+              <Text style={styles.iconText}>📚</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={() => navigation.navigate('Favorites')}
             >
@@ -159,9 +165,12 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.actionIcon}>📝</Text>
               <Text style={styles.actionText}>જાહેરાત મૂકો</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
-              <Text style={styles.actionIcon}>💰</Text>
-              <Text style={styles.actionText}>ભાવ જાણો</Text>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('BlogList')}
+            >
+              <Text style={styles.actionIcon}>📚</Text>
+              <Text style={styles.actionText}>બ્લોગ</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionCard}
@@ -333,7 +342,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 10,
-    marginBottom:-200,
+    marginBottom: 0,
   },
   categoryCard: {
     width: '31%',
@@ -365,7 +374,7 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     paddingHorizontal: 15,
-    marginTop: 20,
+    marginTop: 10,
   },
   actionsRow: {
     flexDirection: 'row',

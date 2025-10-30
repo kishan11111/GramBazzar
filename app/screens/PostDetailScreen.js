@@ -350,36 +350,12 @@ export default function PostDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Category Info */}
-        <View style={styles.categorySection}>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryLabel}>કેટેગરી:</Text>
-            <Text style={styles.categoryValue}>{postDetail.categoryName}</Text>
-          </View>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryLabel}>પ્રકાર:</Text>
-            <Text style={styles.categoryValue}>{postDetail.subCategoryName}</Text>
-          </View>
-        </View>
-
-        {/* Post ID for Reference */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📝 પોસ્ટ માહિતી</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoRowLabel}>પોસ્ટ ID:</Text>
-            <Text style={styles.infoRowValue}>#{postDetail.postId}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoRowLabel}>સ્ટેટસ:</Text>
-            <Text style={[styles.infoRowValue, styles.statusActive]}>{postDetail.status}</Text>
-          </View>
-          {postDetail.address && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoRowLabel}>સરનામું:</Text>
-              <Text style={styles.infoRowValue}>{postDetail.address}</Text>
-            </View>
-          )}
-        </View>
+        {/* TODO: AD BANNER PLACEMENT
+            Add advertisement banner here in future development
+            This is a prime location for displaying ads between content sections
+            Consider implementing Google AdMob or similar ad network
+            Banner should be responsive and non-intrusive to user experience
+        */}
 
         {/* Contact Information */}
         <View style={styles.contactSection}>
@@ -723,50 +699,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#2E7D32',
-  },
-  categorySection: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    marginTop: 10,
-  },
-  categoryBadge: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 12,
-    borderRadius: 10,
-    marginHorizontal: 5,
-  },
-  categoryLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginRight: 5,
-  },
-  categoryValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  infoRowLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  infoRowValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  statusActive: {
-    color: '#4CAF50',
   },
   contactSection: {
     backgroundColor: '#FFFFFF',

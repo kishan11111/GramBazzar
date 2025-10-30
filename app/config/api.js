@@ -22,6 +22,8 @@ export const API_ENDPOINTS = {
   LOCALCARD_DETAIL: '/localcard',
   NOTIFICATIONS: '/user/Notification',
   NOTIFICATION_STATS: '/user/Notification/stats',
+  FEATURED_BLOGS: '/public/Blog/featured',
+  BLOG_DETAIL: '/public/Blog',
 };
 
 const getAuthToken = async () => {
@@ -1233,6 +1235,68 @@ export const apiService = {
       return data;
     } catch (error) {
       console.error('Search Cards Error:', error);
+      throw error;
+    }
+  },
+
+  // ========== BLOG APIs (PUBLIC) ==========
+
+  // Get Featured Blogs
+  getFeaturedBlogs: async (count = 5) => {
+    try {
+      console.log(`📚 Fetching ${count} featured blogs...`);
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.FEATURED_BLOGS}?count=${count}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Get Featured Blogs Failed - Status:', response.status);
+        console.error('❌ Get Featured Blogs Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Featured blogs fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('Get Featured Blogs Error:', error);
+      throw error;
+    }
+  },
+
+  // Get Blog by ID
+  getBlogById: async (blogId) => {
+    try {
+      console.log(`📖 Fetching blog details for ID: ${blogId}...`);
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_ENDPOINTS.BLOG_DETAIL}/${blogId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Get Blog Failed - Status:', response.status);
+        console.error('❌ Get Blog Failed - Response:', text);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Blog details fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('Get Blog By ID Error:', error);
       throw error;
     }
   },

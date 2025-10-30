@@ -427,7 +427,7 @@ export default function CreateLocalCardScreen({ navigation }) {
         primaryPhone: primaryPhone,
         secondaryPhone: secondaryPhone || '',
         whatsAppNumber: whatsAppNumber || primaryPhone,
-        email: email || '',
+        email: email || 'lokbazzar9999@gmail.com', // Default email if user hasn't provided one
         districtId: selectedDistrict.districtId,
         talukaId: selectedTaluka.talukaId,
         villageId: selectedVillage.villageId,

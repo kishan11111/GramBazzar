@@ -23,6 +23,9 @@ import LocalCardSearchScreen from '../screens/LocalCardSearchScreen';
 import CreateLocalCardScreen from '../screens/CreateLocalCardScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import WeatherScreen from '../screens/WeatherScreen';
+import TermsAndConditionsScreen from '../screens/TermsAndConditionsScreen';
+import BlogListScreen from '../screens/BlogListScreen';
+import BlogDetailScreen from '../screens/BlogDetailScreen';
 const Stack = createStackNavigator();
 
 export default function Index() {
@@ -68,6 +71,9 @@ export default function Index() {
 <Stack.Screen name="CreateLocalCard" component={CreateLocalCardScreen} />
 <Stack.Screen name="Notifications" component={NotificationScreen} />
 <Stack.Screen name="Weather" component={WeatherScreen} />
+<Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
+<Stack.Screen name="BlogList" component={BlogListScreen} />
+<Stack.Screen name="BlogDetail" component={BlogDetailScreen} />
     </Stack.Navigator>
   );
 }

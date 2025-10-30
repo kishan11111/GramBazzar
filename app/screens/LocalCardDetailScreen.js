@@ -149,12 +149,6 @@ export default function LocalCardDetailScreen({ navigation, route }) {
           <View style={styles.detailDivider} />
           <Text style={styles.businessName}>{businessName}</Text>
           {description && <Text style={styles.description}>{description}</Text>}
-          <Text style={styles.detailText}>
-            કેટેગરી: {cardDetails.categoryNameGujarati || cardDetails.categoryNameEnglish}
-          </Text>
-          <Text style={styles.detailText}>
-            સબ-કેટેગરી: {cardDetails.subCategoryNameGujarati || cardDetails.subCategoryNameEnglish}
-          </Text>
         </View>
 
         {cardDetails.contactPersonName && (
