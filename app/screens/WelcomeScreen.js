@@ -5,15 +5,37 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function WelcomeScreen({ navigation }) {
   useEffect(() => {
-    // Navigate to PhoneLogin screen after 2.5 seconds
-    const timer = setTimeout(() => {
-      navigation.replace('PhoneLogin');
-    }, 2500);
+    // Check if user is already logged in
+    const checkAuthStatus = async () => {
+      try {
+        const authToken = await AsyncStorage.getItem('authToken');
 
-    return () => clearTimeout(timer);
+        // Wait 2.5 seconds to show the welcome screen
+        setTimeout(() => {
+          if (authToken) {
+            // User is logged in, navigate to Dashboard
+            console.log('✅ User already logged in, navigating to Dashboard');
+            navigation.replace('Dashboard');
+          } else {
+            // User is not logged in, navigate to PhoneLogin
+            console.log('ℹ️ No auth token found, navigating to PhoneLogin');
+            navigation.replace('PhoneLogin');
+          }
+        }, 2500);
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        // On error, navigate to PhoneLogin as fallback
+        setTimeout(() => {
+          navigation.replace('PhoneLogin');
+        }, 2500);
+      }
+    };
+
+    checkAuthStatus();
   }, [navigation]);
 
   return (

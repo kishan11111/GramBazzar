@@ -56,6 +56,9 @@ export default function CreateLocalCardScreen({ navigation }) {
   const [talukasLoading, setTalukasLoading] = useState(false);
   const [villagesLoading, setVillagesLoading] = useState(false);
 
+  // Store user location IDs for auto-fill
+  const [userLocationData, setUserLocationData] = useState(null);
+
   // Business Info
   const [businessNameGujarati, setBusinessNameGujarati] = useState('');
   const [businessDescriptionGujarati, setBusinessDescriptionGujarati] = useState('');
@@ -83,7 +86,97 @@ export default function CreateLocalCardScreen({ navigation }) {
   useEffect(() => {
     fetchCategories();
     fetchDistricts();
+    loadUserProfileData();
   }, []);
+
+  // Auto-select location when districts are loaded and user location data is available
+  useEffect(() => {
+    if (districts.length > 0 && userLocationData) {
+      autoSelectLocation(userLocationData.districtId, userLocationData.talukaId, userLocationData.villageId);
+    }
+  }, [districts, userLocationData]);
+
+  // Load user profile data to auto-fill fields
+  const loadUserProfileData = async () => {
+    try {
+      const response = await apiService.getUserProfile();
+      if (response.success && response.data) {
+        const user = response.data;
+
+        // Auto-fill primary phone
+        if (user.mobile) {
+          setPrimaryPhone(user.mobile);
+        }
+
+        // Auto-fill address if available
+        if (user.locationString) {
+          setFullAddress(user.locationString);
+        }
+
+        // Store user location IDs for auto-selection after districts load
+        if (user.districtId && user.talukaId && user.villageId) {
+          setUserLocationData({
+            districtId: user.districtId,
+            talukaId: user.talukaId,
+            villageId: user.villageId
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user profile for auto-fill:', error);
+      // Don't show error to user - auto-fill is optional
+    }
+  };
+
+  // Auto-select location based on user's profile
+  const autoSelectLocation = async (districtId, talukaId, villageId) => {
+    try {
+      // Find and select district
+      const district = districts.find(d => String(d.districtId) === String(districtId));
+      if (district) {
+        setSelectedDistrict(district);
+
+        // Fetch and select taluka
+        const talukasResponse = await apiService.getTalukas(districtId);
+        if (talukasResponse.success && talukasResponse.data) {
+          const formattedTalukas = talukasResponse.data.map((taluka, index) => ({
+            id: taluka.talukaId,
+            name: taluka.talukaNameGujarati || taluka.talukaNameEnglish,
+            nameEnglish: taluka.talukaNameEnglish,
+            talukaId: taluka.talukaId,
+            color: generateLightColor(index),
+          }));
+          setTalukas(formattedTalukas);
+
+          const taluka = formattedTalukas.find(t => String(t.talukaId) === String(talukaId));
+          if (taluka) {
+            setSelectedTaluka(taluka);
+
+            // Fetch and select village
+            const villagesResponse = await apiService.getVillages(talukaId);
+            if (villagesResponse.success && villagesResponse.data) {
+              const formattedVillages = villagesResponse.data.map((village, index) => ({
+                id: village.villageId,
+                name: village.villageNameGujarati || village.villageNameEnglish,
+                nameEnglish: village.villageNameEnglish,
+                villageId: village.villageId,
+                color: generateLightColor(index),
+              }));
+              setVillages(formattedVillages);
+
+              const village = formattedVillages.find(v => String(v.villageId) === String(villageId));
+              if (village) {
+                setSelectedVillage(village);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error auto-selecting location:', error);
+      // Don't show error to user - auto-fill is optional
+    }
+  };
 
   // Fetch categories
   const fetchCategories = async () => {
