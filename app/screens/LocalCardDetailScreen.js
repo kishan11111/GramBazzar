@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     Image,
     ImageBackground,
@@ -121,6 +122,51 @@ export default function LocalCardDetailScreen({ navigation, route }) {
     } catch (error) {
       console.log('Share error:', error);
     }
+  };
+
+  const handleEdit = () => {
+    if (!cardDetails) return;
+    // Navigate to edit screen with card data
+    navigation.navigate('EditLocalCard', { cardId: cardDetails.cardId, cardData: cardDetails });
+  };
+
+  const handleDelete = () => {
+    if (!cardDetails) return;
+    Alert.alert(
+      'કાર્ડ ડિલીટ કરો',
+      'શું તમે ખરેખર આ કાર્ડ ડિલીટ કરવા માંગો છો? આ ક્રિયા પાછી ન લાવી શકાય.',
+      [
+        {
+          text: 'રદ કરો',
+          style: 'cancel',
+        },
+        {
+          text: 'ડિલીટ કરો',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const response = await apiService.deleteLocalCard(cardDetails.cardId);
+              if (response.success) {
+                Alert.alert('સફળતા', 'કાર્ડ સફળતાપૂર્વક ડિલીટ થયું છે.', [
+                  {
+                    text: 'ઓકે',
+                    onPress: () => navigation.goBack(),
+                  },
+                ]);
+              } else {
+                throw new Error('કાર્ડ ડિલીટ કરવામાં નિષ્ફળ');
+              }
+            } catch (error) {
+              console.error('Delete card error:', error);
+              Alert.alert('ભૂલ', error.message || 'કાર્ડ ડિલીટ કરવામાં ભૂલ થઈ. કૃપા કરીને ફરી પ્રયાસ કરો.');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const openMap = () => {
@@ -413,7 +459,7 @@ export default function LocalCardDetailScreen({ navigation, route }) {
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error || 'કાર્ડની માહિતી મળી નથી'}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchCardDetails}>
+          <TouchableOpacity style={styles.retryButton} onPress={loadCardAndCheckOwnership}>
             <Text style={styles.retryButtonText}>ફરી પ્રયાસ કરો</Text>
           </TouchableOpacity>
         </View>
@@ -598,6 +644,26 @@ export default function LocalCardDetailScreen({ navigation, route }) {
           <Text style={styles.actionText}>શેર</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Edit and Delete Actions (Only for card owner) */}
+      {isOwnCard && (
+        <View style={styles.ownerActions}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEdit}
+          >
+            <Text style={styles.editButtonIcon}>✏️</Text>
+            <Text style={styles.editButtonText}>એડિટ કરો</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+          >
+            <Text style={styles.deleteButtonIcon}>🗑️</Text>
+            <Text style={styles.deleteButtonText}>ડિલીટ કરો</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -1126,5 +1192,61 @@ const styles = StyleSheet.create({
   imageViewerThumbnailImage: {
     width: '100%',
     height: '100%',
+  },
+  // Owner Actions Styles
+  ownerActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    gap: 10,
+  },
+  editButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  editButtonIcon: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  editButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F44336',
+    paddingVertical: 12,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  deleteButtonIcon: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

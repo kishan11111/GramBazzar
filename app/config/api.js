@@ -106,7 +106,7 @@ export const apiService = {
       throw error;
     }
   },
-  
+
   // Verify OTP
   verifyOTP: async (mobile, otp, purpose = 'REGISTER') => {
     try {
@@ -146,7 +146,7 @@ export const apiService = {
       throw error;
     }
   },
-  
+
  getCategoryList: async () => {
     try {
       const response = await fetch(
@@ -1235,6 +1235,83 @@ export const apiService = {
       return data;
     } catch (error) {
       console.error('Search Cards Error:', error);
+      throw error;
+    }
+  },
+
+  // Delete Local Card (AUTH REQUIRED)
+  deleteLocalCard: async (cardId) => {
+    try {
+      console.log('🗑️ Deleting local card with ID:', cardId);
+
+      const response = await authenticatedFetch(
+        `/localcard/${cardId}/delete`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      // Some APIs return 204 (no content), handle safely
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : { success: response.ok };
+
+      console.log('🟢 Delete Local Card API response:', data);
+      return data;
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Delete Local Card Error:', error);
+      throw error;
+    }
+  },
+
+  // Update Local Card (AUTH REQUIRED)
+  updateLocalCard: async (cardId, cardData) => {
+    try {
+      console.log('🔄 Updating local card with ID:', cardId);
+      console.log('📦 Update Payload:', JSON.stringify(cardData, null, 2));
+
+      const response = await authenticatedFetch(
+        `/localcard/${cardId}/update`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(cardData),
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ Update Local Card Failed - Status:', response.status);
+        console.error('❌ Update Local Card Failed - Response:', text);
+
+        try {
+          const errorData = JSON.parse(text);
+          console.error('❌ Parsed Error Data:', JSON.stringify(errorData, null, 2));
+
+          // Return structured error
+          if (errorData.errors) {
+            const errorMessages = Object.values(errorData.errors).flat().join(', ');
+            throw new Error(errorMessages || `Server error: ${response.status}`);
+          }
+
+          throw new Error(errorData.message || `Server error: ${response.status}`);
+        } catch (parseError) {
+          console.error('❌ Could not parse error response as JSON');
+          throw new Error(`Server error: ${response.status} - ${text.substring(0, 100)}`);
+        }
+      }
+
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : { success: response.ok };
+
+      console.log('🟢 Update Local Card API response:', data);
+      return data;
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED') {
+        throw new Error('તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી લૉગિન કરો.');
+      }
+      console.error('❌ Update Local Card Error:', error);
       throw error;
     }
   },

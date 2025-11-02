@@ -9,20 +9,14 @@ import {
     View,
 } from 'react-native';
 import { apiService } from '../config/api';
+// 🔥 FIREBASE: Commented out - Captcha is not farmer-friendly
+// import { firebaseAuthService } from '../services/firebaseAuthService';
+// import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+// import { auth } from '../config/firebase';
 
 export default function PhoneLoginScreen({ navigation }) {
   const [phoneNumber, setPhoneNumber] = useState('');
 
-//   const handleSendOTP = () => {
-//     // Validation
-//     if (phoneNumber.length !== 10) {
-//       alert('કૃપા કરીને 10 અંકનો મોબાઇલ નંબર નાખો');
-//       return;
-//     }
-
-//     // Navigate to OTP screen (backend will be added later)
-//     navigation.navigate('OtpVerification', { phone: phoneNumber });
-//   };
 const [loading, setLoading] = useState(false);
 
 const handleSendOTP = async () => {

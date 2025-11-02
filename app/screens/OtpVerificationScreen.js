@@ -48,21 +48,11 @@ export default function OtpVerificationScreen({ navigation, route }) {
     }
   };
 
-//   const handleVerifyOtp = () => {
-//     const otpCode = otp.join('');
-    
-//     if (otpCode.length !== 4) {
-//       alert('કૃપા કરીને 4 અંકનો OTP દાખલ કરો');
-//       return;
-//     }
-
-//     // For now, just navigate to user details (backend will be added later)
-//     navigation.navigate('UserDetails', { phone, otp: otpCode });
-//   };
 const [loading, setLoading] = useState(false);
+
 const handleVerifyOtp = async () => {
   const otpCode = otp.join('');
-  
+
   if (otpCode.length !== 4) {
     alert('કૃપા કરીને 4 અંકનો OTP દાખલ કરો');
     return;
@@ -73,7 +63,7 @@ const handleVerifyOtp = async () => {
   try {
     // Step 1: Verify OTP
     const verifyResponse = await apiService.verifyOTP(phone, otpCode, 'REGISTER');
-    
+
     if (!verifyResponse.success) {
       alert(verifyResponse.message || 'અયોગ્ય OTP. કૃપા કરીને ફરી પ્રયાસ કરો.');
       setOtp(['', '', '', '']);
